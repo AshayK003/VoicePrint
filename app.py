@@ -4,11 +4,66 @@ Run: streamlit run app.py
 """
 
 import json
+import re
 
 import streamlit as st
 
 from voiceprint.config import Config, PROVIDER_PRESETS
 from voiceprint.pipeline import HumanizePipeline
+
+
+# ---------------------------------------------------------------------------
+# API Key auto-detection
+# ---------------------------------------------------------------------------
+
+def detect_provider_from_key(api_key: str) -> dict | None:
+    """Detect provider, model, and base URL from API key prefix.
+
+    Returns dict with provider, model, base_url or None if unknown.
+    """
+    key = api_key.strip()
+
+    # Google Gemini — starts with "AIza"
+    if key.startswith("AIza"):
+        return {
+            "provider": "Google Gemini (Free)",
+            "model": "gemini/gemini-2.0-flash",
+            "base_url": "",
+        }
+
+    # OpenAI — starts with "sk-" (but not "sk-ant-")
+    if key.startswith("sk-") and not key.startswith("sk-ant-"):
+        return {
+            "provider": "OpenAI",
+            "model": "gpt-4o-mini",
+            "base_url": "https://api.openai.com/v1",
+        }
+
+    # Anthropic — starts with "sk-ant-"
+    if key.startswith("sk-ant-"):
+        return {
+            "provider": "Anthropic",
+            "model": "claude-3-5-haiku-20241022",
+            "base_url": "",
+        }
+
+    # Groq — starts with "gsk_"
+    if key.startswith("gsk_"):
+        return {
+            "provider": "Groq (Free)",
+            "model": "groq/llama-3.3-70b-versatile",
+            "base_url": "",
+        }
+
+    # Mistral — starts with "ak-"
+    if key.startswith("ak-"):
+        return {
+            "provider": "Mistral (Free)",
+            "model": "mistral/mistral-large-latest",
+            "base_url": "",
+        }
+
+    return None
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -33,41 +88,71 @@ with st.sidebar:
     # --- Provider selection ---
     st.subheader("🔑 LLM Provider")
 
-    provider = st.selectbox(
-        "Provider",
-        options=list(PROVIDER_PRESETS.keys()),
-        index=0,
-    )
-
-    preset = PROVIDER_PRESETS[provider]
-
-    # --- API Key ---
+    # --- API Key (input first so auto-detect can update provider) ---
     api_key = st.text_input(
         "API Key",
         type="password",
-        placeholder="sk-... or AIza...",
-        help="Your API key. Stored in session only — never saved to disk.",
+        placeholder="Paste your API key — auto-detects provider",
+        help="Paste any API key. Provider, model, and base URL are auto-detected.",
     )
 
-    # --- Base URL ---
+    # Auto-detect provider from key prefix
+    auto = detect_provider_from_key(api_key) if api_key else None
+
+    # Session state for provider/model/base_url
+    if "provider" not in st.session_state:
+        st.session_state.provider = list(PROVIDER_PRESETS.keys())[0]
+    if "base_url" not in st.session_state:
+        st.session_state.base_url = ""
+    if "model" not in st.session_state:
+        st.session_state.model = PROVIDER_PRESETS[st.session_state.provider]["model"]
+
+    # Update session state when auto-detect fires
+    if auto:
+        if st.session_state.provider != auto["provider"]:
+            st.toast(f"Auto-detected: {auto['provider']}", icon="🔍")
+        st.session_state.provider = auto["provider"]
+        st.session_state.model = auto["model"]
+        st.session_state.base_url = auto["base_url"]
+
+    # Provider dropdown (reflects auto-detection)
+    provider = st.selectbox(
+        "Provider",
+        options=list(PROVIDER_PRESETS.keys()),
+        index=list(PROVIDER_PRESETS.keys()).index(st.session_state.provider),
+        key="provider_select",
+    )
+    st.session_state.provider = provider
+
+    preset = PROVIDER_PRESETS[provider]
+
+    # Base URL — editable, pre-filled from auto-detect
     base_url = st.text_input(
         "Base URL (optional)",
+        value=st.session_state.base_url,
         placeholder="https://your-api.com/v1",
-        help="Custom OpenAI-compatible endpoint. Leave empty for default.",
+        help="Custom OpenAI-compatible endpoint. Leave empty for provider default.",
+        key="base_url_input",
     )
+    st.session_state.base_url = base_url
 
-    # --- Model ---
+    # Model — editable, pre-filled from auto-detect
     model = st.text_input(
         "Model",
-        value=preset["model"],
+        value=st.session_state.model,
         help="Model identifier for the selected provider.",
+        key="model_input",
     )
+    st.session_state.model = model
 
     # --- Status indicator ---
     if api_key:
-        st.success(f"✅ {provider} configured")
+        if auto:
+            st.success(f"✅ {auto['provider']} — auto-detected")
+        else:
+            st.info(f"ℹ️ Key entered — using {provider}")
     else:
-        st.warning(f"⚠️ No API key for {provider}")
+        st.warning(f"⚠️ No API key")
 
     st.divider()
 
@@ -100,10 +185,10 @@ with st.sidebar:
 def build_config() -> Config:
     """Construct a Config from sidebar inputs."""
     config = Config()
-    config.provider = provider
+    config.provider = st.session_state.provider
     config.api_key = api_key
-    config.base_url = base_url
-    config.llm_model = model
+    config.base_url = st.session_state.base_url
+    config.llm_model = st.session_state.model
 
     # Resolve env var if no manual key provided
     if not config.api_key and preset["env_key"]:
@@ -220,8 +305,8 @@ if st.button("🎨 Humanize", type="primary", use_container_width=True):
             )
         with col_dl2:
             report = {
-                "provider": provider,
-                "model": model,
+                "provider": st.session_state.provider,
+                "model": st.session_state.model,
                 "ai_probability": result.detection.p_ai,
                 "similarity": result.similarity,
                 "burstiness": result.burstiness,

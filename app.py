@@ -4,11 +4,15 @@ Run: streamlit run app.py
 """
 
 import json
-import re
 
 import streamlit as st
 
-from voiceprint.config import Config, PROVIDER_PRESETS
+from voiceprint.config import (
+    Config,
+    PROVIDER_PRESETS,
+    PROVIDER_MODELS,
+    PROVIDER_BASE_URLS,
+)
 from voiceprint.pipeline import HumanizePipeline
 
 
@@ -126,24 +130,64 @@ with st.sidebar:
 
     preset = PROVIDER_PRESETS[provider]
 
-    # Base URL — editable, pre-filled from auto-detect
-    base_url = st.text_input(
-        "Base URL (optional)",
-        value=st.session_state.base_url,
-        placeholder="https://your-api.com/v1",
-        help="Custom OpenAI-compatible endpoint. Leave empty for provider default.",
-        key="base_url_input",
-    )
-    st.session_state.base_url = base_url
+    # --- Model dropdown ---
+    model_options = PROVIDER_MODELS.get(provider, [])
+    model_options_with_custom = list(model_options) + ["Custom..."]
+    current_model = st.session_state.model
 
-    # Model — editable, pre-filled from auto-detect
-    model = st.text_input(
+    # Find closest match in model options
+    try:
+        model_idx = model_options.index(current_model)
+    except ValueError:
+        model_idx = len(model_options_with_custom) - 1  # "Custom..."
+
+    chosen_model = st.selectbox(
         "Model",
-        value=st.session_state.model,
-        help="Model identifier for the selected provider.",
-        key="model_input",
+        options=model_options_with_custom,
+        index=model_idx,
+        key="model_select",
     )
+
+    if chosen_model == "Custom...":
+        model = st.text_input(
+            "Custom model",
+            value="" if current_model in model_options else current_model,
+            placeholder="e.g. gpt-4-turbo",
+            key="model_custom",
+        )
+    else:
+        model = chosen_model
     st.session_state.model = model
+
+    # --- Base URL dropdown ---
+    base_url_options = PROVIDER_BASE_URLS.get(provider, [])
+    base_url_options_with_custom = base_url_options + ["Custom..."]
+    current_base_url = st.session_state.base_url
+
+    try:
+        bu_idx = base_url_options.index(current_base_url)
+    except ValueError:
+        bu_idx = len(base_url_options_with_custom) - 1  # "Custom..."
+
+    chosen_base_url = st.selectbox(
+        "Base URL",
+        options=base_url_options_with_custom,
+        index=bu_idx if current_base_url else 0,
+        key="base_url_select",
+    )
+
+    if chosen_base_url == "Custom...":
+        base_url = st.text_input(
+            "Custom base URL",
+            value="" if current_base_url in base_url_options else current_base_url,
+            placeholder="https://your-api.com/v1",
+            key="base_url_custom",
+        )
+    elif chosen_base_url == "(default)":
+        base_url = ""
+    else:
+        base_url = chosen_base_url
+    st.session_state.base_url = base_url
 
     # --- Status indicator ---
     if api_key:

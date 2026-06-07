@@ -48,6 +48,82 @@ PROVIDER_PRESETS: dict[str, dict[str, str]] = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Common models per provider (for dropdown suggestions)
+# ---------------------------------------------------------------------------
+
+PROVIDER_MODELS: dict[str, list[str]] = {
+    "Google Gemini (Free)": [
+        "gemini/gemini-2.0-flash",
+        "gemini/gemini-2.0-flash-lite",
+        "gemini/gemini-1.5-pro",
+        "gemini/gemini-1.5-flash",
+    ],
+    "OpenAI": [
+        "gpt-4o-mini",
+        "gpt-4o",
+        "gpt-4-turbo",
+        "gpt-3.5-turbo",
+    ],
+    "Anthropic": [
+        "claude-3-5-haiku-20241022",
+        "claude-3-5-sonnet-20241022",
+        "claude-3-opus-20240229",
+    ],
+    "Groq (Free)": [
+        "groq/llama-3.3-70b-versatile",
+        "groq/llama-3.1-8b-instant",
+        "groq/mixtral-8x7b-32768",
+        "groq/gemma2-9b-it",
+    ],
+    "Mistral (Free)": [
+        "mistral/mistral-large-latest",
+        "mistral/mistral-medium-latest",
+        "mistral/mistral-small-latest",
+        "mistral/open-mistral-nemo",
+    ],
+    "OpenCode Zen": [
+        "opencode/mimo-v2.5-free",
+        "opencode/mimo-v2.5-pro",
+    ],
+    "Custom (OpenAI-compatible)": [
+        "",
+    ],
+}
+
+
+# ---------------------------------------------------------------------------
+# Common base URLs per provider (dropdown suggestions)
+# ---------------------------------------------------------------------------
+
+PROVIDER_BASE_URLS: dict[str, list[str]] = {
+    "Google Gemini (Free)": [
+        "(default)",
+    ],
+    "OpenAI": [
+        "(default)",
+        "https://api.openai.com/v1",
+    ],
+    "Anthropic": [
+        "(default)",
+    ],
+    "Groq (Free)": [
+        "(default)",
+    ],
+    "Mistral (Free)": [
+        "(default)",
+    ],
+    "OpenCode Zen": [
+        "(default)",
+        "https://opencode-api.example.com/v1",
+    ],
+    "Custom (OpenAI-compatible)": [
+        "(default)",
+        "https://api.openai.com/v1",
+    ],
+}
+
+
 @dataclass
 class Config:
     # LLM Provider

@@ -1,0 +1,25 @@
+# VoicePrint — AI Text Humanizer
+# All dependencies are MIT/Apache-2.0 licensed
+
+# Frontend
+streamlit>=1.35
+
+# LLM API client (unified interface for OpenAI, Gemini, Groq, etc.)
+litellm>=1.40
+
+# AI-text detection models
+transformers>=4.40
+torch>=2.0
+
+# Semantic similarity
+sentence-transformers>=3.0
+
+# Readability metrics
+textstat>=0.7
+
+# Math & tokenization
+numpy>=1.24
+nltk>=3.8
+
+# Testing
+pytest>=7.0

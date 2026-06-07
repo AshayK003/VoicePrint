@@ -57,6 +57,7 @@ class HumanizePipeline:
         use_paraphrase: bool = True,
         use_polish: bool = True,
         n_candidates: int | None = None,
+        progress_callback: callable | None = None,
     ) -> PipelineResult:
         """Run the full pipeline.
 
@@ -66,6 +67,7 @@ class HumanizePipeline:
             use_paraphrase: Enable Stage 2 (LLM paraphrasing)
             use_polish: Enable Stage 4 (style polish)
             n_candidates: Override number of LLM candidates
+            progress_callback: fn(progress_float, message_str) for UI updates
 
         Returns:
             PipelineResult with humanized text and all metrics
@@ -73,35 +75,46 @@ class HumanizePipeline:
         stages = []
         current = text
 
+        def _report(pct: float, msg: str):
+            if progress_callback:
+                progress_callback(pct, msg)
+
         # Stage 1: Heuristic scrub
         if use_scrub:
+            _report(0.05, "Stage 1: Heuristic scrub...")
             current = scrub(current)
             stages.append("scrub")
 
         # Stage 2: Adversarial paraphrasing
         if use_paraphrase:
+            _report(0.15, "Stage 2: Generating paraphrase candidates...")
             candidates = generate_candidates(
                 current, n=n_candidates, config=self.config
             )
             if candidates:
+                _report(0.65, "Stage 2: Selecting best candidate...")
                 current, sim = select_best(current, candidates, self.config)
                 stages.append("paraphrase")
 
         # Stage 3: Detection (always runs for scoring)
+        _report(0.75, "Stage 3: Running detection ensemble...")
         detection = self.ensemble.detect(current)
         stages.append("detect")
 
         # Stage 4: Style polish
         if use_polish:
+            _report(0.88, "Stage 4: Style polish...")
             current = polish(current)
             stages.append("polish")
 
         # Final metrics
+        _report(0.95, "Computing final metrics...")
         final_detection = self.ensemble.detect(current)
         final_sim = check_similarity(text, current, self.config)
         final_burstiness = burstiness(current)
         final_pattern = pattern_score(current)
 
+        _report(1.0, "Done!")
         return PipelineResult(
             original=text,
             humanized=current,

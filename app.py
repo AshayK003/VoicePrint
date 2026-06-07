@@ -205,7 +205,7 @@ with st.sidebar:
     use_scrub = st.checkbox("Stage 1: Heuristic Scrub", value=True)
     use_paraphrase = st.checkbox("Stage 2: LLM Paraphrasing", value=True)
     use_polish = st.checkbox("Stage 4: Style Polish", value=True)
-    n_candidates = st.slider("Candidates (N)", 1, 16, 8)
+    n_candidates = st.slider("Candidates (N)", 1, 16, 3)
 
     st.divider()
 
@@ -242,6 +242,47 @@ def build_config() -> Config:
     return config
 
 # ---------------------------------------------------------------------------
+# Helpers: diff viewer, copy button
+# ---------------------------------------------------------------------------
+
+def _word_diff_html(original: str, humanized: str) -> str:
+    """Return HTML with word-level diff highlighting."""
+    import difflib
+    from html import escape
+
+    orig_words = original.split()
+    human_words = humanized.split()
+    matcher = difflib.SequenceMatcher(None, orig_words, human_words)
+    out = []
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            out.extend(escape(w) + " " for w in orig_words[i1:i2])
+        elif tag == "replace":
+            out.append('<span style="background:#fcc">')
+            out.extend(escape(w) + " " for w in orig_words[i1:i2])
+            out.append('</span><span style="background:#cfc">')
+            out.extend(escape(w) + " " for w in human_words[j1:j2])
+            out.append("</span>")
+        elif tag == "delete":
+            out.append('<span style="background:#fcc;text-decoration:line-through">')
+            out.extend(escape(w) + " " for w in orig_words[i1:i2])
+            out.append("</span>")
+        elif tag == "insert":
+            out.append('<span style="background:#cfc">')
+            out.extend(escape(w) + " " for w in human_words[j1:j2])
+            out.append("</span>")
+    return "".join(out)
+
+
+def _copy_js(text: str) -> str:
+    """JavaScript snippet to copy text to clipboard."""
+    safe = json.dumps(text)
+    return f"""<button onclick="navigator.clipboard.writeText({safe});this.textContent='Copied!'"
+      style="float:right;padding:4px 12px;border:1px solid #ccc;border-radius:4px;background:transparent;cursor:pointer;font-size:13px">
+    Copy</button>"""
+
+
+# ---------------------------------------------------------------------------
 # Main content
 # ---------------------------------------------------------------------------
 
@@ -267,24 +308,33 @@ if st.button("🎨 Humanize", type="primary", use_container_width=True):
     elif not api_key and not preset["env_key"]:
         st.error("Please enter an API key in the sidebar.")
     else:
-        with st.spinner("Running pipeline..."):
-            config = build_config()
-            pipe = HumanizePipeline(config=config)
-            result = pipe.run(
-                input_text,
-                use_scrub=use_scrub,
-                use_paraphrase=use_paraphrase,
-                use_polish=use_polish,
-                n_candidates=n_candidates,
-            )
+        # Status container with progress bar
+        status = st.status("Initializing...", expanded=True)
+        progress = st.progress(0.0)
 
-        # Display output
+        config = build_config()
+        pipe = HumanizePipeline(config=config)
+
+        def _on_progress(pct: float, msg: str):
+            progress.progress(pct)
+            status.update(label=msg, state="running" if pct < 1.0 else "complete")
+
+        result = pipe.run(
+            input_text,
+            use_scrub=use_scrub,
+            use_paraphrase=use_paraphrase,
+            use_polish=use_polish,
+            n_candidates=n_candidates,
+            progress_callback=_on_progress,
+        )
+
         with col_output:
             st.subheader("Output")
+            st.markdown(_copy_js(result.humanized), unsafe_allow_html=True)
             st.text_area(
                 "Humanized text:",
                 value=result.humanized,
-                height=300,
+                height=280,
                 disabled=True,
                 label_visibility="collapsed",
             )
@@ -305,37 +355,58 @@ if st.button("🎨 Humanize", type="primary", use_container_width=True):
             st.metric(
                 "Similarity",
                 f"{result.similarity:.1%}",
-                delta=f"≥ 78%" if result.similarity >= 0.78 else "Below threshold",
+                delta="OK" if result.similarity >= 0.78 else "Low",
+                delta_color="normal" if result.similarity >= 0.78 else "inverse",
             )
         with col3:
             st.metric(
                 "Burstiness",
                 f"{result.burstiness:.2f}",
-                delta="Human range" if 0.4 <= result.burstiness <= 0.7 else "Outside range",
+                delta="Human" if 0.4 <= result.burstiness <= 0.7 else "AI-like",
+                delta_color="normal" if 0.4 <= result.burstiness <= 0.7 else "inverse",
             )
         with col4:
             st.metric(
                 "Pattern Score",
                 f"{result.pattern_score:.3f}",
-                delta="Low = human" if result.pattern_score < 0.1 else "High = AI",
+                delta="Low" if result.pattern_score < 0.1 else "High",
+                delta_color="normal" if result.pattern_score < 0.1 else "inverse",
+            )
+
+        # Diff view
+        with st.expander("📝 Side-by-Side Diff", expanded=False):
+            st.markdown(
+                '<div style="display:flex;gap:16px">'
+                '<div style="flex:1;max-height:300px;overflow:auto;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px;line-height:1.6">'
+                + "".join(
+                    f'<p>{line}</p>'
+                    for line in input_text.strip().split("\n")
+                )
+                + "</div>"
+                '<div style="flex:1;max-height:300px;overflow:auto;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:14px;line-height:1.6">'
+                + _word_diff_html(input_text, result.humanized)
+                + "</div>"
+                "</div>",
+                unsafe_allow_html=True,
             )
 
         # Detailed breakdown
-        with st.expander("🔍 Detailed Detection Results"):
+        tab1, tab2, tab3, tab4 = st.tabs(
+            ["🔍 Detection", "📈 Readability", "🧬 Signals", "⚙️ Stages"]
+        )
+        with tab1:
             st.code(result.detection.summary(), language=None)
-
-        with st.expander("📈 Readability Scores"):
+        with tab2:
             cols = st.columns(2)
             with cols[0]:
                 st.json(result.readability)
             with cols[1]:
                 st.json(result.burstiness_detail)
-
-        with st.expander("🧬 AI Pattern Signals"):
+        with tab3:
             st.json(result.signals)
-
-        with st.expander("⚙️ Stages Applied"):
-            st.write(f"Pipeline stages: {', '.join(result.stages_applied)}")
+        with tab4:
+            for s in result.stages_applied:
+                st.write(f"✅ **{s}**")
 
         # Export
         st.divider()

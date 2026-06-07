@@ -37,7 +37,7 @@ PROVIDER_PRESETS: dict[str, dict[str, str]] = {
     },
     "OpenCode Zen": {
         "model": "opencode/mimo-v2.5-free",
-        "base_url": "https://opencode-api.example.com/v1",
+        "base_url": "",
         "env_key": "OPENCODE_API_KEY",
     },
     "Custom (OpenAI-compatible)": {
@@ -56,31 +56,34 @@ PROVIDER_MODELS: dict[str, list[str]] = {
     "Google Gemini (Free)": [
         "gemini/gemini-2.0-flash",
         "gemini/gemini-2.0-flash-lite",
-        "gemini/gemini-1.5-pro",
         "gemini/gemini-1.5-flash",
+        "gemini/gemini-1.5-pro",
     ],
     "OpenAI": [
         "gpt-4o-mini",
         "gpt-4o",
-        "gpt-4-turbo",
-        "gpt-3.5-turbo",
+        "gpt-5-mini",
+        "gpt-5",
     ],
     "Anthropic": [
         "claude-3-5-haiku-20241022",
         "claude-3-5-sonnet-20241022",
+        "claude-3-haiku-20240307",
         "claude-3-opus-20240229",
     ],
     "Groq (Free)": [
         "groq/llama-3.3-70b-versatile",
+        "groq/llama-4-scout-17b-16e-instruct",
+        "groq/qwen-3-32b",
         "groq/llama-3.1-8b-instant",
-        "groq/mixtral-8x7b-32768",
-        "groq/gemma2-9b-it",
+        "groq/deepseek-r1-distill-llama-70b",
     ],
     "Mistral (Free)": [
         "mistral/mistral-large-latest",
         "mistral/mistral-medium-latest",
         "mistral/mistral-small-latest",
         "mistral/open-mistral-nemo",
+        "mistral/codestral-latest",
     ],
     "OpenCode Zen": [
         "opencode/mimo-v2.5-free",
@@ -115,7 +118,6 @@ PROVIDER_BASE_URLS: dict[str, list[str]] = {
     ],
     "OpenCode Zen": [
         "(default)",
-        "https://opencode-api.example.com/v1",
     ],
     "Custom (OpenAI-compatible)": [
         "(default)",
@@ -135,7 +137,7 @@ class Config:
     llm_max_tokens: int = 2048
 
     # Paraphrasing
-    n_candidates: int = 8  # Best-of-N
+    n_candidates: int = 3  # Best-of-N (reduced for speed)
     similarity_threshold: float = 0.78  # Min cosine similarity to original
     max_retries: int = 3
 

@@ -9,11 +9,21 @@ Zero-shot: Binoculars-style perplexity ratio
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 from .config import Config, load_config
+
+
+# ---------------------------------------------------------------------------
+# Module-level model caches (survive across instances, like similarity.py)
+# ---------------------------------------------------------------------------
+
+_tokenizer_cache: dict[str, Any] = {}
+_classifier_cache: dict[str, Any] = {}
+_causal_cache: dict[str, Any] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -57,10 +67,17 @@ class RoBERTaDetector:
     def _load(self):
         if self._loaded:
             return
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        self.model = AutoModelForSequenceClassification.from_pretrained(
-            self.model_name
-        ).to(self.device)
+        # Reuse cached tokenizer/model if already loaded by another instance
+        if self.model_name in _tokenizer_cache:
+            self.tokenizer = _tokenizer_cache[self.model_name]
+            self.model = _classifier_cache[self.model_name]
+        else:
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            self.model = AutoModelForSequenceClassification.from_pretrained(
+                self.model_name
+            ).to(self.device)
+            _tokenizer_cache[self.model_name] = self.tokenizer
+            _classifier_cache[self.model_name] = self.model
         self.model.eval()
         self._loaded = True
 
@@ -92,21 +109,30 @@ class BinocularsDetector:
     """Zero-shot detection via perplexity ratio (simplified).
 
     Uses two models to compute a Binoculars-style score.
-    Higher ratio → more likely AI-generated.
+    Higher ratio -> more likely AI-generated.
     """
 
     def __init__(self):
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        from transformers import AutoModelForCausalLM, AutoTokenizer as AT
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self._loaded = False
 
     def _load(self):
         if self._loaded:
             return
-        # Use two models of different sizes for perplexity comparison
-        self.tokenizer = AutoTokenizer.from_pretrained("gpt2")
-        self.model_a = AutoModelForCausalLM.from_pretrained("gpt2").to(self.device)
-        self.model_b = AutoModelForCausalLM.from_pretrained("gpt2-medium").to(self.device)
+        # Reuse cached models if already loaded by another instance
+        if "gpt2" in _causal_cache:
+            self.tokenizer = _tokenizer_cache["gpt2"]
+            self.model_a = _causal_cache["gpt2"]
+            self.model_b = _causal_cache["gpt2-medium"]
+        else:
+            from transformers import AutoModelForCausalLM, AutoTokenizer as AT
+            self.tokenizer = AT.from_pretrained("gpt2")
+            self.model_a = AutoModelForCausalLM.from_pretrained("gpt2").to(self.device)
+            self.model_b = AutoModelForCausalLM.from_pretrained("gpt2-medium").to(self.device)
+            _tokenizer_cache["gpt2"] = self.tokenizer
+            _causal_cache["gpt2"] = self.model_a
+            _causal_cache["gpt2-medium"] = self.model_b
         self.model_a.eval()
         self.model_b.eval()
         self._loaded = True
@@ -175,7 +201,8 @@ class DetectorEnsemble:
                 weighted_sum += result.p_ai * weight
                 total_weight += weight
             except Exception as e:
-                print(f"Warning: {detector.__class__.__name__} failed: {e}")
+                import logging
+                logging.warning(f"{detector.__class__.__name__} failed: {e}")
                 continue
 
         p_ai = weighted_sum / total_weight if total_weight > 0 else 0.5

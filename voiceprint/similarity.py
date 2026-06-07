@@ -43,8 +43,9 @@ def check_similarity(
     score = compute_similarity(original, humanized)
 
     if score < config.similarity_threshold:
-        print(
-            f"Warning: Similarity {score:.3f} below threshold "
+        import logging
+        logging.warning(
+            f"Similarity {score:.3f} below threshold "
             f"{config.similarity_threshold}. Meaning may be degraded."
         )
 

@@ -98,22 +98,20 @@ class HumanizePipeline:
                     stages.append("paraphrase")
             except Exception as e:
                 _report(0.65, f"Stage 2 skipped: {e}")
-                # Continue without paraphrasing
 
-        # Stage 3: Detection (always runs for scoring)
-        _report(0.75, "Stage 3: Running detection ensemble...")
-        detection = self.ensemble.detect(current)
-        stages.append("detect")
-
-        # Stage 4: Style polish
+        # Stage 3: Style polish
         if use_polish:
-            _report(0.88, "Stage 4: Style polish...")
+            _report(0.70, "Stage 3: Style polish...")
             current = polish(current)
             stages.append("polish")
 
+        # Stage 4: Detection (single pass after all transforms)
+        _report(0.80, "Stage 4: Running detection ensemble...")
+        final_detection = self.ensemble.detect(current)
+        stages.append("detect")
+
         # Final metrics
         _report(0.95, "Computing final metrics...")
-        final_detection = self.ensemble.detect(current)
         final_sim = check_similarity(text, current, self.config)
         final_burstiness = burstiness(current)
         final_pattern = pattern_score(current)

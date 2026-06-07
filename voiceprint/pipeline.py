@@ -88,13 +88,17 @@ class HumanizePipeline:
         # Stage 2: Adversarial paraphrasing
         if use_paraphrase:
             _report(0.15, "Stage 2: Generating paraphrase candidates...")
-            candidates = generate_candidates(
-                current, n=n_candidates, config=self.config
-            )
-            if candidates:
-                _report(0.65, "Stage 2: Selecting best candidate...")
-                current, sim = select_best(current, candidates, self.config)
-                stages.append("paraphrase")
+            try:
+                candidates = generate_candidates(
+                    current, n=n_candidates, config=self.config
+                )
+                if candidates:
+                    _report(0.65, "Stage 2: Selecting best candidate...")
+                    current, sim = select_best(current, candidates, self.config)
+                    stages.append("paraphrase")
+            except Exception as e:
+                _report(0.65, f"Stage 2 skipped: {e}")
+                # Continue without paraphrasing
 
         # Stage 3: Detection (always runs for scoring)
         _report(0.75, "Stage 3: Running detection ensemble...")

@@ -40,20 +40,24 @@ Humanized version:"""
 
 def _litellm_kwargs(config: Config, temperature: float) -> dict:
     """Build kwargs dict for litellm.completion, passing provider config."""
+    model = config.llm_model.strip() if config.llm_model else ""
+    if not model:
+        raise ValueError("Model name is empty. Select a model in the sidebar.")
+
     kwargs: dict = {
-        "model": config.llm_model,
+        "model": model,
         "messages": [{"role": "user", "content": ""}],
         "temperature": temperature,
         "max_tokens": config.llm_max_tokens,
     }
 
-    # API key — litellm expects it via api_key param or env var
+    # API key — strip whitespace; litellm expects it via api_key param or env var
     if config.api_key:
-        kwargs["api_key"] = config.api_key
+        kwargs["api_key"] = config.api_key.strip()
 
     # Base URL — for custom OpenAI-compatible endpoints
     if config.base_url:
-        kwargs["api_base"] = config.base_url
+        kwargs["base_url"] = config.base_url.strip()
 
     return kwargs
 
@@ -96,7 +100,8 @@ def generate_candidates(
             candidate = generate_candidate(text, config, temperature=temp)
             candidates.append(candidate)
         except Exception as e:
-            print(f"Warning: Candidate {i+1} failed: {e}")
+            import logging
+            logging.warning(f"Candidate {i+1} failed: {e}")
             continue
 
     return candidates

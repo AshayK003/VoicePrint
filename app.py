@@ -317,16 +317,23 @@ if st.button("🎨 Humanize", type="primary", use_container_width=True):
 
         def _on_progress(pct: float, msg: str):
             progress.progress(pct)
-            status.update(label=msg, state="running" if pct < 1.0 else "complete")
+            is_err = msg.startswith("Stage 2 skipped")
+            state = "error" if is_err else ("complete" if pct >= 1.0 else "running")
+            status.update(label=msg, state=state)
 
-        result = pipe.run(
-            input_text,
-            use_scrub=use_scrub,
-            use_paraphrase=use_paraphrase,
-            use_polish=use_polish,
-            n_candidates=n_candidates,
-            progress_callback=_on_progress,
-        )
+        try:
+            result = pipe.run(
+                input_text,
+                use_scrub=use_scrub,
+                use_paraphrase=use_paraphrase,
+                use_polish=use_polish,
+                n_candidates=n_candidates,
+                progress_callback=_on_progress,
+            )
+        except Exception as e:
+            status.update(label=f"Failed: {e}", state="error")
+            st.error(f"Pipeline failed: {e}")
+            st.stop()
 
         with col_output:
             st.subheader("Output")

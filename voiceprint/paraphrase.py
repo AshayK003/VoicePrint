@@ -38,6 +38,26 @@ Humanized version:"""
 # Core functions
 # ---------------------------------------------------------------------------
 
+def _litellm_kwargs(config: Config, temperature: float) -> dict:
+    """Build kwargs dict for litellm.completion, passing provider config."""
+    kwargs: dict = {
+        "model": config.llm_model,
+        "messages": [{"role": "user", "content": ""}],
+        "temperature": temperature,
+        "max_tokens": config.llm_max_tokens,
+    }
+
+    # API key — litellm expects it via api_key param or env var
+    if config.api_key:
+        kwargs["api_key"] = config.api_key
+
+    # Base URL — for custom OpenAI-compatible endpoints
+    if config.base_url:
+        kwargs["api_base"] = config.base_url
+
+    return kwargs
+
+
 def generate_candidate(
     text: str,
     config: Config | None = None,
@@ -47,14 +67,12 @@ def generate_candidate(
     config = config or load_config()
     temp = temperature if temperature is not None else config.llm_temperature
 
-    response = litellm.completion(
-        model=config.llm_model,
-        messages=[
-            {"role": "user", "content": PARAPHRASE_PROMPT.format(text=text)}
-        ],
-        temperature=temp,
-        max_tokens=config.llm_max_tokens,
-    )
+    kwargs = _litellm_kwargs(config, temp)
+    kwargs["messages"] = [
+        {"role": "user", "content": PARAPHRASE_PROMPT.format(text=text)}
+    ]
+
+    response = litellm.completion(**kwargs)
 
     return response.choices[0].message.content.strip()
 

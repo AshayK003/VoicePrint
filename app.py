@@ -3,10 +3,12 @@
 Run: streamlit run app.py
 """
 
+import json
+
 import streamlit as st
+
+from voiceprint.config import Config, PROVIDER_PRESETS
 from voiceprint.pipeline import HumanizePipeline
-from voiceprint.metrics import burstiness_report, readability_scores
-from voiceprint.patterns import compute_all_signals, pattern_score
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -19,7 +21,7 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------------------------
-# Sidebar
+# Sidebar — Provider & API Configuration
 # ---------------------------------------------------------------------------
 
 with st.sidebar:
@@ -28,13 +30,57 @@ with st.sidebar:
 
     st.divider()
 
-    st.subheader("Pipeline Settings")
+    # --- Provider selection ---
+    st.subheader("🔑 LLM Provider")
+
+    provider = st.selectbox(
+        "Provider",
+        options=list(PROVIDER_PRESETS.keys()),
+        index=0,
+    )
+
+    preset = PROVIDER_PRESETS[provider]
+
+    # --- API Key ---
+    api_key = st.text_input(
+        "API Key",
+        type="password",
+        placeholder="sk-... or AIza...",
+        help="Your API key. Stored in session only — never saved to disk.",
+    )
+
+    # --- Base URL ---
+    base_url = st.text_input(
+        "Base URL (optional)",
+        placeholder="https://your-api.com/v1",
+        help="Custom OpenAI-compatible endpoint. Leave empty for default.",
+    )
+
+    # --- Model ---
+    model = st.text_input(
+        "Model",
+        value=preset["model"],
+        help="Model identifier for the selected provider.",
+    )
+
+    # --- Status indicator ---
+    if api_key:
+        st.success(f"✅ {provider} configured")
+    else:
+        st.warning(f"⚠️ No API key for {provider}")
+
+    st.divider()
+
+    # --- Pipeline settings ---
+    st.subheader("⚙️ Pipeline Settings")
     use_scrub = st.checkbox("Stage 1: Heuristic Scrub", value=True)
     use_paraphrase = st.checkbox("Stage 2: LLM Paraphrasing", value=True)
     use_polish = st.checkbox("Stage 4: Style Polish", value=True)
     n_candidates = st.slider("Candidates (N)", 1, 16, 8)
 
     st.divider()
+
+    # --- About ---
     st.subheader("About")
     st.markdown("""
     Multi-stage pipeline that transforms AI-generated text
@@ -46,6 +92,25 @@ with st.sidebar:
     3. Detection scoring (ensemble)
     4. Style polish (no model)
     """)
+
+# ---------------------------------------------------------------------------
+# Build Config from sidebar inputs
+# ---------------------------------------------------------------------------
+
+def build_config() -> Config:
+    """Construct a Config from sidebar inputs."""
+    config = Config()
+    config.provider = provider
+    config.api_key = api_key
+    config.base_url = base_url
+    config.llm_model = model
+
+    # Resolve env var if no manual key provided
+    if not config.api_key and preset["env_key"]:
+        import os
+        config.api_key = os.getenv(preset["env_key"], "")
+
+    return config
 
 # ---------------------------------------------------------------------------
 # Main content
@@ -70,9 +135,12 @@ with col_input:
 if st.button("🎨 Humanize", type="primary", use_container_width=True):
     if not input_text.strip():
         st.warning("Please enter some text to humanize.")
+    elif not api_key and not preset["env_key"]:
+        st.error("Please enter an API key in the sidebar.")
     else:
         with st.spinner("Running pipeline..."):
-            pipe = HumanizePipeline()
+            config = build_config()
+            pipe = HumanizePipeline(config=config)
             result = pipe.run(
                 input_text,
                 use_scrub=use_scrub,
@@ -151,8 +219,9 @@ if st.button("🎨 Humanize", type="primary", use_container_width=True):
                 mime="text/plain",
             )
         with col_dl2:
-            import json
             report = {
+                "provider": provider,
+                "model": model,
                 "ai_probability": result.detection.p_ai,
                 "similarity": result.similarity,
                 "burstiness": result.burstiness,
@@ -172,7 +241,7 @@ else:
         with col_output:
             st.info("Click **Humanize** to start the pipeline.")
 
-        # Quick pre-check
+        # Quick pre-check (no API key needed — uses local detectors)
         if st.button("🔍 Quick Detection Check", use_container_width=False):
             with st.spinner("Checking..."):
                 pipe = HumanizePipeline()

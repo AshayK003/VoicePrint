@@ -52,3 +52,6 @@ htmlcov/
 
 # Docs (auto-generated)
 docs/_build/
+
+# Agent instructions (local only)
+/AGENTS.md

@@ -45,11 +45,11 @@ def signal_ai_vocabulary(text: str) -> float:
 def signal_transition_density(text: str) -> float:
     """Fraction of sentences starting with transition words."""
     sentences = re.split(r"(?<=[.!?])\s+", text.strip())
-    if not sentences:
+    if not sentences or not sentences[0].strip():
         return 0.0
     starts_with_transition = sum(
         1 for s in sentences
-        if s.strip().split()[0].lower().strip(".,;:!?") in TRANSITION_WORDS
+        if s.strip() and s.strip().split()[0].lower().strip(".,;:!?") in TRANSITION_WORDS
     )
     return starts_with_transition / len(sentences)
 
@@ -194,5 +194,7 @@ def pattern_score(text: str) -> float:
     Based on paniccow/humanizer's 13-signal aggregate.
     """
     signals = compute_all_signals(text)
+    # type_token_ratio is inverted: high diversity = human = low AI score
+    signals["type_token_ratio"] = 1.0 - signals["type_token_ratio"]
     values = list(signals.values())
     return round(float(np.mean(values)), 4)

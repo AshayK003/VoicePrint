@@ -8,11 +8,12 @@ Usage:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import logging
+from dataclasses import dataclass
 
 from .config import Config, load_config
 from .scrub import scrub
-from .paraphrase import paraphrase, generate_candidates, select_best
+from .paraphrase import generate_candidates, select_best
 from .detect import DetectorEnsemble, EnsembleResult
 from .polish import polish
 from .similarity import check_similarity
@@ -72,68 +73,142 @@ class HumanizePipeline:
         Returns:
             PipelineResult with humanized text and all metrics
         """
-        stages = []
-        current = text
+        if not text or not text.strip():
+            return PipelineResult(
+                original=text,
+                humanized=text,
+                detection=EnsembleResult(p_ai=0.0, detectors=[], passed=True),
+                similarity=1.0,
+                burstiness=0.0,
+                pattern_score=0.0,
+                readability=readability_scores(text),
+                burstiness_detail=burstiness_report(text),
+                signals=compute_all_signals(text),
+                stages_applied=[],
+            )
+        stages: list[str] = []
+        max_iter = self.config.max_iterations
 
         def _report(pct: float, msg: str):
             if progress_callback:
                 progress_callback(pct, msg)
 
-        # Stage 1: Heuristic scrub
+        # Stage 1: Heuristic scrub (runs once, before iteration loop)
+        scrubbed = text
         if use_scrub:
             _report(0.05, "Stage 1: Heuristic scrub...")
-            current = scrub(current)
+            scrubbed = scrub(text)
             stages.append("scrub")
 
-        # Stage 2: Adversarial paraphrasing
-        if use_paraphrase:
-            _report(0.15, "Stage 2: Generating paraphrase candidates...")
+        # Iterative loop: paraphrase → polish → detect
+        best_text = scrubbed
+        best_pai = 1.0
+        best_detection: EnsembleResult | None = None
+
+        for iteration in range(max_iter):
+            current = scrubbed
+            iter_label = f" (attempt {iteration + 1}/{max_iter})" if max_iter > 1 else ""
+
+            # Stage 2: Adversarial paraphrasing
+            if use_paraphrase:
+                _report(0.15, f"Stage 2: Generating candidates{iter_label}...")
+                try:
+                    candidates = generate_candidates(
+                        current, n=n_candidates, config=self.config
+                    )
+                    if candidates:
+                        _report(0.65, f"Stage 2: Selecting best candidate{iter_label}...")
+                        current, _sim = select_best(current, candidates, self.config)
+                        if "paraphrase" not in stages:
+                            stages.append("paraphrase")
+                        # Post-paraphrase scrub: LLM re-introduces AI patterns
+                        current = scrub(current)
+                except Exception as e:
+                    _report(0.65, f"Stage 2 skipped: {e}")
+
+            # Stage 3: Style polish
+            if use_polish:
+                _report(0.70, f"Stage 3: Style polish{iter_label}...")
+                current = polish(current)
+                if "polish" not in stages:
+                    stages.append("polish")
+
+            # Stage 4: Detection
+            _report(0.80, f"Stage 4: Running detection{iter_label}...")
             try:
-                candidates = generate_candidates(
-                    current, n=n_candidates, config=self.config
-                )
-                if candidates:
-                    _report(0.65, "Stage 2: Selecting best candidate...")
-                    current, sim = select_best(current, candidates, self.config)
-                    stages.append("paraphrase")
+                detection = self.ensemble.detect(current)
+                if "detect" not in stages:
+                    stages.append("detect")
             except Exception as e:
-                _report(0.65, f"Stage 2 skipped: {e}")
+                logging.warning(f"Detection failed: {e}")
+                detection = EnsembleResult(p_ai=0.5, detectors=[], passed=False)
 
-        # Stage 3: Style polish
-        if use_polish:
-            _report(0.70, "Stage 3: Style polish...")
-            current = polish(current)
-            stages.append("polish")
+            # Track best result across iterations
+            if detection.p_ai < best_pai:
+                best_pai = detection.p_ai
+                best_text = current
+                best_detection = detection
 
-        # Stage 4: Detection (single pass after all transforms)
-        _report(0.80, "Stage 4: Running detection ensemble...")
-        final_detection = self.ensemble.detect(current)
-        stages.append("detect")
+            # Early exit if detection passes
+            if detection.passed:
+                _report(0.90, f"Detection passed on attempt {iteration + 1}!")
+                break
 
-        # Final metrics
+        # Final metrics on best result (compute in parallel)
         _report(0.95, "Computing final metrics...")
-        final_sim = check_similarity(text, current, self.config)
-        final_burstiness = burstiness(current)
-        final_pattern = pattern_score(current)
+        from concurrent.futures import ThreadPoolExecutor
+
+        def _compute_similarity():
+            try:
+                return check_similarity(text, best_text, self.config)
+            except Exception as e:
+                logging.warning(f"Similarity check failed: {e}")
+                return 0.0
+
+        def _compute_burstiness():
+            return burstiness(best_text)
+
+        def _compute_pattern_score():
+            return pattern_score(best_text)
+
+        def _compute_readability():
+            return readability_scores(best_text)
+
+        def _compute_burstiness_detail():
+            return burstiness_report(best_text)
+
+        def _compute_signals():
+            return compute_all_signals(best_text)
+
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            fut_sim = executor.submit(_compute_similarity)
+            fut_bur = executor.submit(_compute_burstiness)
+            fut_ps = executor.submit(_compute_pattern_score)
+            fut_read = executor.submit(_compute_readability)
+            fut_bur_det = executor.submit(_compute_burstiness_detail)
+            fut_sig = executor.submit(_compute_signals)
+
+            final_sim = fut_sim.result()
+            final_burstiness = fut_bur.result()
+            final_ps = fut_ps.result()
+            final_readability = fut_read.result()
+            final_bur_det = fut_bur_det.result()
+            final_signals = fut_sig.result()
 
         _report(1.0, "Done!")
         return PipelineResult(
             original=text,
-            humanized=current,
-            detection=final_detection,
+            humanized=best_text,
+            detection=best_detection or EnsembleResult(p_ai=0.5, detectors=[], passed=False),
             similarity=final_sim,
             burstiness=final_burstiness,
-            pattern_score=final_pattern,
-            readability=readability_scores(current),
-            burstiness_detail=burstiness_report(current),
-            signals=compute_all_signals(current),
+            pattern_score=final_ps,
+            readability=final_readability,
+            burstiness_detail=final_bur_det,
+            signals=final_signals,
             stages_applied=stages,
         )
 
     def detect_only(self, text: str) -> EnsembleResult:
         """Run detection without humanization (for pre-check)."""
         return self.ensemble.detect(text)
-
-    def scrub_only(self, text: str) -> str:
-        """Run only the heuristic scrub (no API calls)."""
-        return scrub(text)

@@ -58,11 +58,4 @@ def readability_scores(text: str) -> dict:
     }
 
 
-def word_count(text: str) -> int:
-    """Count words in text."""
-    return len(text.split())
 
-
-def char_count(text: str) -> int:
-    """Count characters in text."""
-    return len(text)

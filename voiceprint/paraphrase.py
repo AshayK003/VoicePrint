@@ -6,10 +6,49 @@ then selects the best one based on detection scores and similarity.
 
 from __future__ import annotations
 
+import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 import litellm
+
+# Disable litellm file operations (avoids [Errno 22] on Windows)
+litellm.cache = None
+litellm.success_callback = []
+litellm.failure_callback = []
+litellm.set_verbose = False
+# Suppress litellm's own HTTP request logging (avoids spilling API keys to stdout)
+import os
+os.environ.setdefault("LITELLM_LOG", "WARNING")
+os.environ.setdefault("OPENAI_LOG", "WARN")
 
 from .config import Config, load_config
 from .similarity import check_similarity
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Error sanitization — redact API keys from log messages
+# ---------------------------------------------------------------------------
+
+_API_KEY_PATTERNS = [
+    r"(?i)(api[_-]?key|apikey)\s*['\"]?[=:]\s*['\"]?(sk-[A-Za-z0-9]{10,})",
+    r"(?i)(AIza[0-9A-Za-z_-]{35})",       # Google Gemini
+    r"(?i)(gsk_[A-Za-z0-9]{30,})",         # Groq
+    r"(?i)(ak-[A-Za-z0-9]{20,})",          # Mistral
+    r"(?i)(sk-ant-[A-Za-z0-9]{20,})",      # Anthropic
+    r"(?i)(sk-[A-Za-z0-9]{20,})",          # OpenAI
+    r"(?i)(Authorization:\s*Bearer\s+\S+)",
+]
+
+
+def _sanitize_error(msg: str) -> str:
+    """Redact API keys and bearer tokens from error messages before logging."""
+    import re
+    result = msg
+    for pattern in _API_KEY_PATTERNS:
+        result = re.sub(pattern, "[API KEY REDACTED]", result)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -17,26 +56,63 @@ from .similarity import check_similarity
 # ---------------------------------------------------------------------------
 
 PARAPHRASE_PROMPT = """\
-Rewrite the following AI-generated text to sound like a real human wrote it.
+You are a human editor rewriting AI-generated text to pass as human-written.
 
-Rules:
-- Vary sentence length dramatically (some short 5-10 words, some long 30+ words)
-- Use casual, conversational phrasing where appropriate
-- Add natural imperfections — not everything needs to be perfectly structured
-- Replace formal AI vocabulary with everyday words
-- Keep ALL facts, data, and meaning exactly the same
-- Do NOT add new information that wasn't in the original
-- Write as if explaining to a smart friend, not submitting to a professor
+DETECTION AVOIDANCE — these patterns get flagged instantly:
+- Uniform sentence length (all 15-25 words) → break this
+- Starting multiple sentences with "The", "This", "It", "In" → vary openers
+- Perfect parallel structure → break it unevenly
+- Modal verbs stacked (could, would, should) → remove most
+- No contractions → use them naturally
+- Transition words at sentence starts (Furthermore, Moreover, However) → cut or rephrase
+- Abstract subjects (It is important, There are) → use concrete subjects
+- Clean, symmetrical paragraph structure → make it messy
+
+REWRITE RULES:
+1. Sentence rhythm: mix 4-word punches with 40-word long sentences. Never uniform.
+2. Openers: start sentences with pronouns, verbs, prepositions, fragments, questions. Never two in a row with the same.
+3. Voice: write like you're texting a friend who asked you to explain this. First/second person OK.
+4. Imperfection: add one short sentence fragment. Use a dash. Start a sentence with "And" or "But".
+5. Vocabulary: swap AI words (leverage→use, facilitate→help, comprehensive→full, robust→strong, utilize→use, furthermore→also, moreover→plus, nevertheless→still, consequently→so)
+6. Structure: merge short sentences. Split long ones. Rearrange order where meaning allows.
+7. Keep ALL facts, data, numbers, and core meaning identical. Do NOT add new information.
 
 Original text:
 {text}
 
-Humanized version:"""
+Rewrite it now:"""
 
 
 # ---------------------------------------------------------------------------
 # Core functions
 # ---------------------------------------------------------------------------
+
+def _validate_base_url(url: str) -> str:
+    """Validate and normalize base URL. Rejects non-HTTPS URLs unless localhost.
+    Raises ValueError on invalid URLs.
+    """
+    from urllib.parse import urlparse
+    url = url.strip()
+    if not url:
+        return url
+    parsed = urlparse(url)
+    if not parsed.scheme or not parsed.netloc:
+        raise ValueError(
+            f"Invalid base URL '{url}'. Must include scheme and host, "
+            f"e.g. https://api.openai.com/v1"
+        )
+    if parsed.scheme == "http":
+        host = parsed.hostname or ""
+        # Allow HTTP only for localhost/loopback (e.g. local LM proxy)
+        if host not in ("localhost", "127.0.0.1", "::1"):
+            raise ValueError(
+                f"HTTP base URL '{url}' is not allowed. "
+                f"Use HTTPS, or for local proxies use localhost."
+            )
+    elif parsed.scheme != "https":
+        raise ValueError(f"Unsupported scheme '{parsed.scheme}' in base URL. Use https://.")
+    return url
+
 
 def _litellm_kwargs(config: Config, temperature: float) -> dict:
     """Build kwargs dict for litellm.completion, passing provider config."""
@@ -55,9 +131,9 @@ def _litellm_kwargs(config: Config, temperature: float) -> dict:
     if config.api_key:
         kwargs["api_key"] = config.api_key.strip()
 
-    # Base URL — for custom OpenAI-compatible endpoints
+    # Base URL — validate before passing to litellm (SSRF prevention)
     if config.base_url:
-        kwargs["base_url"] = config.base_url.strip()
+        kwargs["base_url"] = _validate_base_url(config.base_url)
 
     return kwargs
 
@@ -86,23 +162,33 @@ def generate_candidates(
     n: int | None = None,
     config: Config | None = None,
 ) -> list[str]:
-    """Generate N paraphrase candidates with varied temperatures."""
+    """Generate N paraphrase candidates in parallel with varied temperatures."""
     config = config or load_config()
     n = n or config.n_candidates
 
-    candidates = []
-    # Vary temperature across candidates for diversity
-    temps = [0.7, 0.9, 1.0, 1.1, 1.2, 1.0, 0.8, 1.1]
+    # Wide temperature range for maximum diversity
+    temps = [0.5, 0.8, 1.0, 1.2, 1.4, 1.1, 0.9, 1.3]
+    temperatures = [temps[i % len(temps)] for i in range(n)]
 
-    for i in range(n):
-        temp = temps[i % len(temps)]
+    candidates: list[str] = []
+
+    def _generate_one(idx: int, temp: float) -> str | None:
         try:
-            candidate = generate_candidate(text, config, temperature=temp)
-            candidates.append(candidate)
+            return generate_candidate(text, config, temperature=temp)
         except Exception as e:
-            import logging
-            logging.warning(f"Candidate {i+1} failed: {e}")
-            continue
+            logger.warning(f"Candidate {idx+1} failed: {_sanitize_error(str(e))}")
+            return None
+
+    # Run all candidates in parallel
+    with ThreadPoolExecutor(max_workers=min(n, 4)) as executor:
+        futures = {
+            executor.submit(_generate_one, i, t): i
+            for i, t in enumerate(temperatures)
+        }
+        for future in as_completed(futures):
+            result = future.result()
+            if result is not None:
+                candidates.append(result)
 
     return candidates
 
@@ -111,42 +197,65 @@ def select_best(
     original: str,
     candidates: list[str],
     config: Config | None = None,
+    detector=None,
 ) -> tuple[str, float]:
-    """Select the best candidate based on similarity to original.
+    """Select the best candidate by detection score, not just similarity.
+
+    Optimization: pre-filter by similarity (cheap), then detect only top candidates (expensive).
+    This reduces detection calls from N to min(N, 3).
+
+    Args:
+        detector: Optional DetectorEnsemble instance. If None, creates one.
 
     Returns (best_candidate, similarity_score).
     """
     config = config or load_config()
 
-    best_text = ""
-    best_score = 0.0
-
-    for candidate in candidates:
-        sim = check_similarity(original, candidate)
-        if sim >= config.similarity_threshold and sim > best_score:
-            best_text = candidate
-            best_score = sim
-
-    # Fallback: if no candidate passes threshold, pick highest similarity
-    if not best_text and candidates:
-        scores = [(c, check_similarity(original, c)) for c in candidates]
-        best_text, best_score = max(scores, key=lambda x: x[1])
-
-    return best_text, best_score
-
-
-def paraphrase(
-    text: str,
-    config: Config | None = None,
-) -> tuple[str, float]:
-    """Full paraphrasing pipeline: generate N candidates, select best.
-
-    Returns (humanized_text, similarity_score).
-    """
-    config = config or load_config()
-
-    candidates = generate_candidates(text, config=config)
     if not candidates:
-        return text, 1.0
+        return original, 1.0
 
-    return select_best(text, candidates, config=config)
+    # Step 1: Compute all similarity scores (cheap — no models)
+    sim_map = {}
+    for c in candidates:
+        sim_map[c] = check_similarity(original, c, config=config)
+
+    # Step 2: Filter by minimum similarity, sort by sim descending
+    min_sim = 0.55
+    scored = [(c, sim_map[c]) for c in candidates if sim_map[c] >= min_sim]
+    if not scored:
+        scored = [(c, sim_map[c]) for c in candidates]
+    scored.sort(key=lambda x: x[1], reverse=True)
+
+    # Step 3: Run detection ONLY on top candidates (expensive — model inference)
+    top_n = min(len(scored), 3)
+    top_candidates = [c for c, _ in scored[:top_n]]
+
+    if detector is None:
+        from .detect import DetectorEnsemble
+        detector = DetectorEnsemble(config)
+
+    best = None
+    best_pai = 1.0
+    best_sim = 0.0
+
+    for candidate in top_candidates:
+        sim = sim_map[candidate]
+        try:
+            detection = detector.detect(candidate)
+            p_ai = detection.p_ai
+        except Exception:
+            p_ai = 0.5
+        if p_ai < best_pai:
+            best = candidate
+            best_pai = p_ai
+            best_sim = sim
+
+    # Fallback: if detection failed on all, pick highest similarity
+    if best is None:
+        best = scored[0][0]
+        best_sim = scored[0][1]
+
+    return best, best_sim
+
+
+

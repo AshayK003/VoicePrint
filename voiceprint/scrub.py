@@ -5,6 +5,7 @@ Replaces AI transition phrases, forces burstiness, injects contractions,
 breaks tricolons, and reduces em-dash density.
 """
 
+import random
 import re
 from typing import Callable
 
@@ -123,7 +124,7 @@ def replace_transitions(text: str) -> str:
 
 @rule
 def break_tricolons(text: str) -> str:
-    """Break the AI-favorite 'X, Y, and Z' pattern."""
+    """Break the AI-favorite 'X, Y, and Z' pattern (single-word items)."""
     pattern = r"(\b\w+\b),\s+(\b\w+\b),\s+and\s+(\b\w+\b)"
     return re.sub(pattern, r"\1 and \2", text)
 
@@ -260,6 +261,130 @@ def remove_hedges(text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Filler phrase removal (AI-specific)
+# ---------------------------------------------------------------------------
+
+FILLER_PHRASES: list[tuple[str, str]] = [
+    (r"\bIt is important to note that\b", ""),
+    (r"\bIt is worth noting that\b", ""),
+    (r"\bIt should be noted that\b", ""),
+    (r"\bIt goes without saying that\b", ""),
+    (r"\bIt is essential to\b", "We need to"),
+    (r"\bIt is crucial to\b", "We have to"),
+    (r"\bIn this day and age\b", "Nowadays"),
+    (r"\bAt the end of the day\b", "Ultimately"),
+    (r"\bWhen it comes to\b", "For"),
+    (r"\bIn terms of\b", "For"),
+    (r"\bAs a matter of fact\b", "Actually"),
+    (r"\bFor all intents and purposes\b", "Basically"),
+    (r"\bBy and large\b", "Mostly"),
+    (r"\bOn a regular basis\b", "Regularly"),
+    (r"\bDue to the fact that\b", "Because"),
+    (r"\bIn light of the fact that\b", "Since"),
+    (r"\bGiven the fact that\b", "Since"),
+    (r"\bWith regard to\b", "About"),
+    (r"\bWith respect to\b", "About"),
+    (r"\bIn the event that\b", "If"),
+    (r"\bFor the purpose of\b", "To"),
+    (r"\bIn order to\b", "To"),
+    (r"\bIs able to\b", "Can"),
+    (r"\bHas the ability to\b", "Can"),
+    (r"\bIs in a position to\b", "Can"),
+]
+
+
+@rule
+def remove_filler_phrases(text: str) -> str:
+    """Remove AI filler phrases and wordy constructions."""
+    for pattern, replacement in FILLER_PHRASES:
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+    text = re.sub(r"\s{2,}", " ", text)
+    return text
+
+
+# ---------------------------------------------------------------------------
+# Modal verb reduction
+# ---------------------------------------------------------------------------
+
+MODALS: list[str] = [
+    r"\bcould\b", r"\bwould\b", r"\bshould\b", r"\bmight\b",
+    r"\bmay\b", r"\bmust\b", r"\bshall\b",
+]
+
+
+_reduce_modals_rng = random.Random()
+
+
+@rule
+def reduce_modals(text: str) -> str:
+    """Reduce excessive modal verb usage (AI tends to over-hedge)."""
+    _reduce_modals_rng.seed(hash(text) & 0xFFFF_FFFF)
+
+    for modal_pattern in MODALS:
+        matches = list(re.finditer(modal_pattern, text, re.IGNORECASE))
+        for m in reversed(matches):
+            if _reduce_modals_rng.random() < 0.6:
+                text = text[:m.start()] + text[m.end():]
+    text = re.sub(r"\s{2,}", " ", text)
+    return text
+
+
+# ---------------------------------------------------------------------------
+# Abstract subject conversion
+# ---------------------------------------------------------------------------
+
+ABSTRACT_SUBJECTS: list[tuple[str, str]] = [
+    (r"\bIt is clear that\b", "Clearly"),
+    (r"\bIt is evident that\b", "Clearly"),
+    (r"\bIt is apparent that\b", "Clearly"),
+    (r"\bIt is true that\b", "Surely"),
+    (r"\bThere is no doubt that\b", "Undoubtedly"),
+    (r"\bThere is a need to\b", "We need to"),
+    (r"\bThere are many\b", "Many"),
+    (r"\bThere are several\b", "Several"),
+    (r"\bThis is a\b", "It's a"),
+    (r"\bThat is a\b", "It's a"),
+    (r"\bThe fact is that\b", "Actually"),
+    (r"\bThe reality is that\b", "Actually"),
+    (r"\bThe thing is that\b", "Actually"),
+]
+
+
+@rule
+def convert_abstract_subjects(text: str) -> str:
+    """Replace abstract/vague sentence openers with concrete ones."""
+    for pattern, replacement in ABSTRACT_SUBJECTS:
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+    return text
+
+
+# ---------------------------------------------------------------------------
+# Parallel structure breaking
+# ---------------------------------------------------------------------------
+
+@rule
+def break_parallelism(text: str) -> str:
+    """Break AI's tendency toward symmetrical parallel structures."""
+    # Break "not just X, not just Y, not just Z" → "not just X or Y or Z"
+    text = re.sub(
+        r"not just (\w+),\s*not just (\w+),\s*and not just (\w+)",
+        r"not just \1, \2, or \3",
+        text,
+        flags=re.IGNORECASE,
+    )
+
+    # Break triple "it's X, it's Y, and it's Z" parallel structures
+    text = re.sub(
+        r"(it's \w+),\s+it's \w+,\s+and it's (\w+)",
+        r"\1 and \2",
+        text,
+        flags=re.IGNORECASE,
+    )
+
+    return text
+
+
+# ---------------------------------------------------------------------------
 # Numbered list conversion (AI loves "1. 2. 3.")
 # ---------------------------------------------------------------------------
 
@@ -279,8 +404,3 @@ def scrub(text: str) -> str:
     for rule_fn in _rules:
         text = rule_fn(text)
     return text
-
-
-def get_rules() -> list[str]:
-    """Return list of registered rule names (for debugging)."""
-    return [fn.__name__ for fn in _rules]

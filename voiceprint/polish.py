@@ -27,15 +27,15 @@ def rule(func: Callable[[str], str]) -> Callable[[str], str]:
 # ---------------------------------------------------------------------------
 
 ACTIVE_CONVERSIONS: list[tuple[str, str]] = [
-    (r"The study was conducted by (.+)", r"\1 conducted the study"),
-    (r"The experiment was performed by (.+)", r"\1 performed the experiment"),
-    (r"The data was analyzed by (.+)", r"\1 analyzed the data"),
-    (r"The results were obtained by (.+)", r"\1 obtained the results"),
-    (r"The model was trained by (.+)", r"\1 trained the model"),
-    (r"The paper was written by (.+)", r"\1 wrote the paper"),
-    (r"The research was carried out by (.+)", r"\1 carried out the research"),
-    (r"The survey was conducted among (.+)", r"We surveyed \1"),
-    (r"The analysis was performed on (.+)", r"We analyzed \1"),
+    (r"The study was conducted by ([^.]+)\.", r"\1 conducted the study."),
+    (r"The experiment was performed by ([^.]+)\.", r"\1 performed the experiment."),
+    (r"The data was analyzed by ([^.]+)\.", r"\1 analyzed the data."),
+    (r"The results were obtained by ([^.]+)\.", r"\1 obtained the results."),
+    (r"The model was trained by ([^.]+)\.", r"\1 trained the model."),
+    (r"The paper was written by ([^.]+)\.", r"\1 wrote the paper."),
+    (r"The research was carried out by ([^.]+)\.", r"\1 carried out the research."),
+    (r"The survey was conducted among ([^.]+)\.", r"We surveyed \1."),
+    (r"The analysis was performed on ([^.]+)\.", r"We analyzed \1."),
 ]
 
 

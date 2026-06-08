@@ -1,29 +1,37 @@
 """Stage 3: AI-Pattern Detection & Scoring.
 
-Ensemble of open-source detectors to measure how "AI-like" text is.
-Primary: RoBERTa-large-openai-detector
-Secondary: chatgpt-detector-roberta
-Zero-shot: Binoculars-style perplexity ratio
+Three-tier detection:
+  1. Statistical pre-filter (instant, ~0MB) — burstiness + pattern signals
+  2. Binoculars zero-shot (fast, ~2GB) — perplexity ratio between two LMs
+  3. RoBERTa ensemble (heavy, ~1.9GB) — fine-tuned classifier
+
+Most AI text scores >0.7 on statistics alone, so models are skipped entirely.
 """
 
 from __future__ import annotations
 
+import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Any
 
 import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoModelForCausalLM
 
 from .config import Config, load_config
+from .metrics import burstiness
+from .patterns import pattern_score
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Module-level model caches (survive across instances, like similarity.py)
+# Module-level model caches (survive across Streamlit reruns)
 # ---------------------------------------------------------------------------
 
 _tokenizer_cache: dict[str, Any] = {}
 _classifier_cache: dict[str, Any] = {}
-_causal_cache: dict[str, Any] = {}
+_binoculars_cache: dict[str, Any] = {}  # {model_name: (tokenizer, model)}
 
 
 # ---------------------------------------------------------------------------
@@ -44,16 +52,58 @@ class EnsembleResult:
     p_ai: float          # Weighted average probability
     detectors: list[DetectionResult]
     passed: bool         # True if below detection threshold
+    method: str = "model"  # "statistical" or "model"
 
     def summary(self) -> str:
-        lines = [f"Ensemble p_ai: {self.p_ai:.3f} ({'HUMAN' if self.passed else 'AI'})"]
+        tag = "[STATISTICAL]" if self.method == "statistical" else "[MODEL]"
+        lines = [f"{tag} Ensemble p_ai: {self.p_ai:.3f} ({'HUMAN' if self.passed else 'AI'})"]
         for d in self.detectors:
             lines.append(f"  {d.name}: {d.p_ai:.3f} ({d.label})")
         return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
-# Detector classes
+# Statistical pre-filter (instant, no models loaded)
+# ---------------------------------------------------------------------------
+
+# Thresholds: if statistical score is outside this range, skip models
+_STAT_LOW = 0.20   # Below this → almost certainly human
+_STAT_HIGH = 0.80  # Above this → almost certainly AI
+
+
+def _statistical_score(text: str) -> float:
+    """Compute a fast AI-likelihood score from statistics alone.
+
+    Combines burstiness (low = AI) and pattern_score (high = AI)
+    into a single 0-1 score where 1 = definitely AI.
+    """
+    b = burstiness(text)
+    p = pattern_score(text)
+
+    # Invert burstiness: low burstiness → high AI score
+    # Human burstiness is 0.4-0.7, AI is <0.3
+    b_score = max(0.0, min(1.0, 1.0 - (b - 0.1) * 2.0))
+
+    # Weighted blend: pattern_score is more reliable
+    return 0.4 * b_score + 0.6 * p
+
+
+def statistical_detect(text: str) -> EnsembleResult:
+    """Instant detection using statistics only. No models loaded."""
+    score = _statistical_score(text)
+    passed = score < 0.5
+    label = "FAKE" if score > 0.5 else "REAL"
+
+    return EnsembleResult(
+        p_ai=score,
+        detectors=[DetectionResult(name="statistical", p_ai=score, label=label)],
+        passed=passed,
+        method="statistical",
+    )
+
+
+# ---------------------------------------------------------------------------
+# RoBERTa detector
 # ---------------------------------------------------------------------------
 
 class RoBERTaDetector:
@@ -67,7 +117,6 @@ class RoBERTaDetector:
     def _load(self):
         if self._loaded:
             return
-        # Reuse cached tokenizer/model if already loaded by another instance
         if self.model_name in _tokenizer_cache:
             self.tokenizer = _tokenizer_cache[self.model_name]
             self.model = _classifier_cache[self.model_name]
@@ -97,7 +146,6 @@ class RoBERTaDetector:
             outputs = self.model(**inputs)
             probs = torch.nn.functional.softmax(outputs.logits, dim=-1)
 
-        # Model outputs [REAL, FAKE] — index 1 is AI probability
         p_ai = probs[0][1].item()
         label = "FAKE" if p_ai > 0.5 else "REAL"
 
@@ -105,107 +153,164 @@ class RoBERTaDetector:
         return DetectionResult(name=short_name, p_ai=p_ai, label=label)
 
 
-class BinocularsDetector:
-    """Zero-shot detection via perplexity ratio (simplified).
+# ---------------------------------------------------------------------------
+# Binoculars zero-shot detector (perplexity ratio)
+# ---------------------------------------------------------------------------
 
-    Uses two models to compute a Binoculars-style score.
-    Higher ratio -> more likely AI-generated.
+_BINOCULARS_MODEL_A = "gpt2"
+_BINOCULARS_MODEL_B = "gpt2-medium"
+
+
+class BinocularsDetector:
+    """Zero-shot AI detection via perplexity ratio between two LMs.
+
+    Uses GPT-2 and GPT-2-medium. AI text has ratio ~1.0 (both models
+    find it equally natural). Human text has more variance.
     """
 
-    def __init__(self):
-        from transformers import AutoModelForCausalLM, AutoTokenizer as AT
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+    def __init__(self, device: str | None = None):
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self._loaded = False
 
     def _load(self):
         if self._loaded:
             return
-        # Reuse cached models if already loaded by another instance
-        if "gpt2" in _causal_cache:
-            self.tokenizer = _tokenizer_cache["gpt2"]
-            self.model_a = _causal_cache["gpt2"]
-            self.model_b = _causal_cache["gpt2-medium"]
-        else:
-            from transformers import AutoModelForCausalLM, AutoTokenizer as AT
-            self.tokenizer = AT.from_pretrained("gpt2")
-            self.model_a = AutoModelForCausalLM.from_pretrained("gpt2").to(self.device)
-            self.model_b = AutoModelForCausalLM.from_pretrained("gpt2-medium").to(self.device)
-            _tokenizer_cache["gpt2"] = self.tokenizer
-            _causal_cache["gpt2"] = self.model_a
-            _causal_cache["gpt2-medium"] = self.model_b
-        self.model_a.eval()
-        self.model_b.eval()
+        for name in (_BINOCULARS_MODEL_A, _BINOCULARS_MODEL_B):
+            if name not in _binoculars_cache:
+                tok = AutoTokenizer.from_pretrained(name)
+                mod = AutoModelForCausalLM.from_pretrained(name).to(self.device)
+                mod.eval()
+                _binoculars_cache[name] = (tok, mod)
         self._loaded = True
 
-    def _perplexity(self, model, tokenizer, text: str) -> float:
-        inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
-        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+    def _perplexity(self, text: str, model_name: str) -> float:
+        tok, mod = _binoculars_cache[model_name]
+        inputs = tok(text, return_tensors="pt", truncation=True, max_length=512).to(self.device)
         with torch.no_grad():
-            outputs = model(**inputs, labels=inputs["input_ids"])
+            outputs = mod(**inputs, labels=inputs["input_ids"])
         return torch.exp(outputs.loss).item()
 
     def detect(self, text: str) -> DetectionResult:
-        """Run Binoculars-style detection."""
+        """Compute Binoculars score and classify."""
         self._load()
-        ppl_a = self._perplexity(self.model_a, self.tokenizer, text)
-        ppl_b = self._perplexity(self.model_b, self.tokenizer, text)
+        ppl_a = self._perplexity(text, _BINOCULARS_MODEL_A)
+        ppl_b = self._perplexity(text, _BINOCULARS_MODEL_B)
+        score = ppl_a / ppl_b if ppl_b > 0 else 1.0
 
-        # Binoculars score: ratio of perplexities
-        # AI text tends to have ratio closer to 1.0 (both models find it predictable)
-        # Human text has more variance between models
-        ratio = ppl_a / ppl_b if ppl_b > 0 else 1.0
-
-        # Map ratio to probability (calibrated empirically)
-        # Lower ratio → more likely human
-        p_ai = max(0.0, min(1.0, 1.0 - (ratio - 0.8) * 2.5))
+        # Thresholds from the Binoculars paper:
+        # AI text: ratio close to 1.0 (both models equally "natural")
+        # Human text: ratio deviates from 1.0
+        # Map ratio to 0-1 p_ai: 1.0 → high p_ai, deviation → low p_ai
+        p_ai = max(0.0, min(1.0, 1.0 - abs(score - 1.0) * 5.0))
         label = "FAKE" if p_ai > 0.5 else "REAL"
 
-        return DetectionResult(name="binoculars", p_ai=p_ai, label=label)
+        return DetectionResult(
+            name="binoculars",
+            p_ai=p_ai,
+            label=label,
+        )
 
 
 # ---------------------------------------------------------------------------
-# Ensemble
+# Ensemble (statistical pre-filter → model fallback)
 # ---------------------------------------------------------------------------
 
 class DetectorEnsemble:
-    """Ensemble of AI text detectors with weighted scoring."""
+    """Three-tier detection ensemble.
+
+    Tier 1: Statistical pre-filter (instant) — burstiness + pattern signals.
+    Tier 2: Binoculars zero-shot + RoBERTa models — only if ambiguous.
+    """
 
     def __init__(self, config: Config | None = None):
         config = config or load_config()
         self.config = config
-        self.detectors = []
-        self.weights = []
 
-        # Primary: RoBERTa-large
-        self.detectors.append(RoBERTaDetector(config.primary_detector))
-        self.weights.append(0.5)
+        # Lazy-loaded detectors (only created if needed)
+        self._roberta_detectors = None
+        self._binoculars: BinocularsDetector | None = None
 
-        # Secondary: chatgpt-detector-roberta
-        self.detectors.append(RoBERTaDetector(config.secondary_detector))
-        self.weights.append(0.3)
+    def _ensure_roberta(self):
+        """Lazily initialize RoBERTa detectors on first model-based detection."""
+        if self._roberta_detectors is not None:
+            return
+        self._roberta_detectors = [
+            RoBERTaDetector(self.config.primary_detector),   # weight 0.65
+            RoBERTaDetector(self.config.secondary_detector),  # weight 0.35
+        ]
+        self._roberta_weights = [0.65, 0.35]
 
-        # Zero-shot: Binoculars
-        self.detectors.append(BinocularsDetector())
-        self.weights.append(0.2)
+    def _detect_one(self, detector: RoBERTaDetector, text: str) -> DetectionResult | None:
+        """Run a single detector, returning None on failure."""
+        try:
+            return detector.detect(text)
+        except Exception as e:
+            logger.warning(f"{detector.__class__.__name__} failed: {e}")
+            return None
+
+    def _run_binoculars(self, text: str) -> DetectionResult | None:
+        """Run Binoculars zero-shot detection, returning None on failure."""
+        if self._binoculars is None:
+            self._binoculars = BinocularsDetector()
+        try:
+            return self._binoculars.detect(text)
+        except Exception as e:
+            logger.warning(f"Binoculars failed: {e}")
+            return None
 
     def detect(self, text: str) -> EnsembleResult:
-        """Run all detectors and compute weighted average."""
-        results = []
+        """Detection: statistics first, models only if ambiguous and enabled."""
+        # Tier 1: Instant statistical check
+        stat = statistical_detect(text)
+
+        # If models disabled or score is clear, return statistical result
+        if not self.config.use_models or stat.p_ai < _STAT_LOW or stat.p_ai > _STAT_HIGH:
+            logger.info(
+                f"Statistical pre-filter: {stat.p_ai:.3f} → "
+                f"{'HEURISTIC' if not self.config.use_models else 'SKIPPED' if stat.p_ai < _STAT_LOW else 'DETECTED'} "
+                f"(no models loaded)"
+            )
+            return stat
+
+        # Tier 2: Ambiguous — run Binoculars + RoBERTa in parallel
+        logger.info(f"Statistical pre-filter: {stat.p_ai:.3f} → ambiguous, running models")
+
+        all_detectors: list[DetectionResult] = [stat.detectors[0]]
         weighted_sum = 0.0
         total_weight = 0.0
 
-        for detector, weight in zip(self.detectors, self.weights):
-            try:
-                result = detector.detect(text)
-                results.append(result)
-                weighted_sum += result.p_ai * weight
-                total_weight += weight
-            except Exception as e:
-                import logging
-                logging.warning(f"{detector.__class__.__name__} failed: {e}")
-                continue
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            # Binoculars: weight 0.30
+            binoculars_future = executor.submit(self._run_binoculars, text)
+            # RoBERTa: weight 0.70 total (0.455 primary, 0.245 secondary)
+            self._ensure_roberta()
+            roberta_futures = {
+                executor.submit(self._detect_one, det, text): (det, w * 0.70)
+                for det, w in zip(self._roberta_detectors, self._roberta_weights)
+            }
 
-        p_ai = weighted_sum / total_weight if total_weight > 0 else 0.5
-        passed = p_ai < self.config.detection_threshold
+            # Collect Binoculars result
+            binoculars_result = binoculars_future.result()
+            if binoculars_result is not None:
+                all_detectors.append(binoculars_result)
+                weighted_sum += binoculars_result.p_ai * 0.30
+                total_weight += 0.30
 
-        return EnsembleResult(p_ai=p_ai, detectors=results, passed=passed)
+            # Collect RoBERTa results
+            for future in as_completed(roberta_futures):
+                det, weight = roberta_futures[future]
+                result = future.result()
+                if result is not None:
+                    all_detectors.append(result)
+                    weighted_sum += result.p_ai * weight
+                    total_weight += weight
+
+        p_ai = weighted_sum / total_weight if total_weight > 0 else stat.p_ai
+        blended_passed = p_ai < self.config.detection_threshold
+
+        return EnsembleResult(
+            p_ai=p_ai,
+            detectors=all_detectors,
+            passed=blended_passed,
+            method="model",
+        )

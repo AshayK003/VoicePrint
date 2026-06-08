@@ -5,6 +5,7 @@ Replaces AI transition phrases, forces burstiness, injects contractions,
 breaks tricolons, and reduces em-dash density.
 """
 
+import hashlib
 import random
 import re
 from typing import Callable
@@ -318,7 +319,7 @@ _reduce_modals_rng = random.Random()
 @rule
 def reduce_modals(text: str) -> str:
     """Reduce excessive modal verb usage (AI tends to over-hedge)."""
-    _reduce_modals_rng.seed(hash(text) & 0xFFFF_FFFF)
+    _reduce_modals_rng.seed(hashlib.md5(text.encode()).hexdigest())
 
     for modal_pattern in MODALS:
         matches = list(re.finditer(modal_pattern, text, re.IGNORECASE))

@@ -265,10 +265,14 @@ class DetectorEnsemble:
 
         # If models disabled or score is clear, return statistical result
         if not self.config.use_models or stat.p_ai < _STAT_LOW or stat.p_ai > _STAT_HIGH:
+            if not self.config.use_models:
+                reason = "models disabled"
+            elif stat.p_ai < _STAT_LOW:
+                reason = "clear human"
+            else:
+                reason = "clear AI"
             logger.info(
-                f"Statistical pre-filter: {stat.p_ai:.3f} → "
-                f"{'HEURISTIC' if not self.config.use_models else 'SKIPPED' if stat.p_ai < _STAT_LOW else 'DETECTED'} "
-                f"(no models loaded)"
+                f"Statistical pre-filter: {stat.p_ai:.3f} → {reason} (models skipped)"
             )
             return stat
 

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from dataclasses import dataclass
 
 from .config import Config, validate_config, load_config
@@ -24,20 +25,22 @@ import time
 _LIMIT_WINDOW = 60  # seconds
 _LIMIT_MAX_CALLS = 10  # max humanize calls per window
 _last_calls: list[float] = []
+_lock = threading.Lock()
 
 
 def _check_rate_limit() -> None:
     """Raise InputError if rate limit exceeded. Per-process sliding window."""
     global _last_calls
-    now = time.time()
-    cutoff = now - _LIMIT_WINDOW
-    _last_calls = [t for t in _last_calls if t > cutoff]
-    if len(_last_calls) >= _LIMIT_MAX_CALLS:
-        raise InputError(
-            f"Rate limit exceeded: max {_LIMIT_MAX_CALLS} humanizations "
-            f"per {_LIMIT_WINDOW} seconds. Please wait."
-        )
-    _last_calls.append(now)
+    with _lock:
+        now = time.time()
+        cutoff = now - _LIMIT_WINDOW
+        _last_calls = [t for t in _last_calls if t > cutoff]
+        if len(_last_calls) >= _LIMIT_MAX_CALLS:
+            raise InputError(
+                f"Rate limit exceeded: max {_LIMIT_MAX_CALLS} humanizations "
+                f"per {_LIMIT_WINDOW} seconds. Please wait."
+            )
+        _last_calls.append(now)
 
 
 # ---------------------------------------------------------------------------
@@ -57,7 +60,7 @@ def validate_input(text: str) -> str:
 
     Raises InputError on problems.
     """
-    if not text:
+    if not isinstance(text, str) or not text.strip():
         raise InputError("Text cannot be empty.")
     text = text.strip()
     if len(text) < _MIN_TEXT_LENGTH:

@@ -147,8 +147,6 @@ class Config:
     use_models: bool = True  # False = skip all model loading, use heuristics only
 
 
-
-
 def load_config() -> Config:
     """Load configuration with environment variable overrides."""
     config = Config()

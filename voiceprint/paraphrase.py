@@ -7,7 +7,10 @@ then selects the best one based on detection scores and similarity.
 from __future__ import annotations
 
 import logging
+import os
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.parse import urlparse
 
 import litellm
 
@@ -17,7 +20,6 @@ litellm.success_callback = []
 litellm.failure_callback = []
 litellm.set_verbose = False
 # Suppress litellm's own HTTP request logging (avoids spilling API keys to stdout)
-import os
 os.environ.setdefault("LITELLM_LOG", "WARNING")
 os.environ.setdefault("OPENAI_LOG", "WARN")
 
@@ -41,10 +43,17 @@ _API_KEY_PATTERNS = [
     r"(?i)(Authorization:\s*Bearer\s+\S+)",
 ]
 
+# Deliberately lower than config.similarity_threshold (0.68). This gates
+# candidate pool size, not final quality — higher values reject too many
+# valid candidates before detection can evaluate them.
+_MIN_CANDIDATE_SIM = 0.55
+
+# Wide temperature range for maximum candidate diversity
+_CANDIDATE_TEMPERATURES = [0.5, 0.8, 1.0, 1.2, 1.4, 1.1, 0.9, 1.3]
+
 
 def _sanitize_error(msg: str) -> str:
     """Redact API keys and bearer tokens from error messages before logging."""
-    import re
     result = msg
     for pattern in _API_KEY_PATTERNS:
         result = re.sub(pattern, "[API KEY REDACTED]", result)
@@ -91,7 +100,6 @@ def _validate_base_url(url: str) -> str:
     """Validate and normalize base URL. Rejects non-HTTPS URLs unless localhost.
     Raises ValueError on invalid URLs.
     """
-    from urllib.parse import urlparse
     url = url.strip()
     if not url:
         return url
@@ -166,9 +174,7 @@ def generate_candidates(
     config = config or load_config()
     n = n or config.n_candidates
 
-    # Wide temperature range for maximum diversity
-    temps = [0.5, 0.8, 1.0, 1.2, 1.4, 1.1, 0.9, 1.3]
-    temperatures = [temps[i % len(temps)] for i in range(n)]
+    temperatures = [_CANDIDATE_TEMPERATURES[i % len(_CANDIDATE_TEMPERATURES)] for i in range(n)]
 
     candidates: list[str] = []
 
@@ -220,8 +226,7 @@ def select_best(
         sim_map[c] = check_similarity(original, c, config=config)
 
     # Step 2: Filter by minimum similarity, sort by sim descending
-    min_sim = 0.55
-    scored = [(c, sim_map[c]) for c in candidates if sim_map[c] >= min_sim]
+    scored = [(c, sim_map[c]) for c in candidates if sim_map[c] >= _MIN_CANDIDATE_SIM]
     if not scored:
         scored = [(c, sim_map[c]) for c in candidates]
     scored.sort(key=lambda x: x[1], reverse=True)

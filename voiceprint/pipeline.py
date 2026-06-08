@@ -9,6 +9,7 @@ Usage:
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 from .config import Config, load_config
@@ -106,7 +107,7 @@ class HumanizePipeline:
         best_detection: EnsembleResult | None = None
 
         for iteration in range(max_iter):
-            current = scrubbed
+            current = best_text if iteration > 0 and best_text != scrubbed else scrubbed
             iter_label = f" (attempt {iteration + 1}/{max_iter})" if max_iter > 1 else ""
 
             # Stage 2: Adversarial paraphrasing
@@ -156,7 +157,6 @@ class HumanizePipeline:
 
         # Final metrics on best result (compute in parallel)
         _report(0.95, "Computing final metrics...")
-        from concurrent.futures import ThreadPoolExecutor
 
         def _compute_similarity():
             try:

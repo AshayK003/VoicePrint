@@ -7,11 +7,14 @@ Two modes:
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import TYPE_CHECKING
 
+from .config import Config, load_config
+
 if TYPE_CHECKING:
-    from .config import Config
+    pass
 
 # Module-level cache for sentence-transformer model
 _model = None
@@ -81,12 +84,10 @@ def check_similarity(
 
     Returns the similarity score. Use config.similarity_threshold to gate.
     """
-    from .config import load_config
     config = config or load_config()
     score = compute_similarity(original, humanized, config=config)
 
     if score < config.similarity_threshold:
-        import logging
         logging.warning(
             f"Similarity {score:.3f} below threshold "
             f"{config.similarity_threshold}. Meaning may be degraded."

@@ -71,9 +71,10 @@ class TestProviderBaseUrls:
 class TestConfig:
     def test_defaults(self):
         config = Config()
-        assert config.provider == "Google Gemini (Free)"
-        assert config.llm_model == "gemini/gemini-2.0-flash"
-        assert config.n_candidates == 8
+        assert config.provider == "OpenCode Zen"
+        assert config.llm_model == "openai/nemotron-3-ultra-free"
+        assert config.base_url == "https://opencode.ai/zen/v1"
+        assert config.n_candidates == 1
         assert config.similarity_threshold == 0.68
         assert config.detection_threshold == 0.5
 
@@ -104,7 +105,7 @@ class TestLoadConfig:
     def test_no_env_uses_default(self, monkeypatch):
         monkeypatch.delenv("VOICEPRINT_LLM_MODEL", raising=False)
         config = load_config()
-        assert config.llm_model == "gemini/gemini-2.0-flash"
+        assert config.llm_model == "openai/nemotron-3-ultra-free"
 
     def test_similarity_threshold_env_override(self, monkeypatch):
         monkeypatch.setenv("VOICEPRINT_SIMILARITY_THRESHOLD", "0.85")

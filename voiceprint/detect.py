@@ -53,12 +53,16 @@ class EnsembleResult:
     detectors: list[DetectionResult]
     passed: bool         # True if below detection threshold
     method: str = "model"  # "statistical" or "model"
+    perplexity: float | None = None  # Raw perplexity (higher = more human)
+    perplexity_score: float | None = None  # Normalized 0-1 (1 = most human-like)
 
     def summary(self) -> str:
         tag = "[STATISTICAL]" if self.method == "statistical" else "[MODEL]"
         lines = [f"{tag} Ensemble p_ai: {self.p_ai:.3f} ({'HUMAN' if self.passed else 'AI'})"]
         for d in self.detectors:
             lines.append(f"  {d.name}: {d.p_ai:.3f} ({d.label})")
+        if self.perplexity is not None:
+            lines.append(f"  perplexity: {self.perplexity:.1f} (score: {self.perplexity_score:.2f})")
         return "\n".join(lines)
 
 

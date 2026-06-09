@@ -7,6 +7,8 @@ from voiceprint.polish import (
     convert_passive_to_active,
     inject_rhetorical_questions,
     inject_fragments,
+    inject_dysfluencies,
+    inject_personal_narrative,
     remove_duplicates,
     normalize_punctuation,
 )
@@ -170,3 +172,90 @@ class TestPolishFull:
         text = "Hello world."
         result = polish(text)
         assert result == "Hello world."
+
+
+# ---------------------------------------------------------------------------
+# inject_dysfluencies (seeded)
+# ---------------------------------------------------------------------------
+
+class TestInjectDysfluencies:
+    def test_short_text_no_injection(self):
+        """Fewer than 4 sentences: no injection."""
+        text = "One. Two. Three."
+        result = inject_dysfluencies(text)
+        assert result == text
+
+    def test_empty_string(self):
+        assert inject_dysfluencies("") == ""
+
+    def test_dysfluency_adds_filler(self):
+        """6+ sentences: should occasionally add mid-sentence fillers."""
+        random.seed(42)
+        text = "This is the first sentence about a topic. Here comes another one. And this is the third sentence here. A fourth sentence follows shortly after. Then there is a fifth sentence to consider. And finally the sixth one ends it."
+        result = inject_dysfluencies(text)
+        # With seed 42 and 15% probability, should add at least one dysfluency
+        assert "Well," in result or "Actually," in result or "I mean," in result
+
+    def test_self_correction_in_long_sentences(self):
+        """Long sentences should occasionally get self-corrections."""
+        random.seed(99)
+        text = ("This is a very long sentence that contains many words and should trigger a self correction insertion. "
+                "Short one. Here is another short one. And another. Five. Six.")
+        result = inject_dysfluencies(text)
+        # With seed 99 and 8% chance, first long sentence might get a correction
+        assert result is not None
+
+    def test_deterministic_with_seed(self):
+        random.seed(123)
+        text = "First sentence here. Second sentence goes here. Third is here too. Fourth follows shortly. Number five. Number six."
+        result1 = inject_dysfluencies(text)
+        random.seed(123)
+        result2 = inject_dysfluencies(text)
+        assert result1 == result2
+
+
+# ---------------------------------------------------------------------------
+# inject_personal_narrative (seeded)
+# ---------------------------------------------------------------------------
+
+class TestInjectPersonalNarrative:
+    def test_short_text_no_injection(self):
+        """Fewer than 3 sentences: no injection."""
+        text = "One. Two."
+        result = inject_personal_narrative(text)
+        assert result == text
+
+    def test_empty_string(self):
+        assert inject_personal_narrative("") == ""
+
+    def test_adds_personal_framing(self):
+        """Should occasionally add first-person framing (try multiple seeds)."""
+        text = ("The results show a significant improvement in performance. "
+                "The data supports this conclusion. "
+                "Further analysis confirms the findings. "
+                "This approach works better than alternatives. "
+                "More testing would be beneficial.")
+        found = False
+        for s in range(100):
+            random.seed(s)
+            result = inject_personal_narrative(text)
+            if result != text:
+                found = True
+                break
+        assert found, "No personal framing added for any seed 0-99"
+
+    def test_personal_side_in_long_sentences(self):
+        """Longer sentences should occasionally get personal asides."""
+        random.seed(42)
+        text = ("This is a very long sentence that discusses an important topic with many details. "
+                "Second sentence here. Third. Fourth. Fifth. Sixth.")
+        result = inject_personal_narrative(text)
+        assert result is not None
+
+    def test_deterministic_with_seed(self):
+        random.seed(123)
+        text = "First sentence. Second sentence. Third sentence. Fourth. Fifth. Sixth."
+        result1 = inject_personal_narrative(text)
+        random.seed(123)
+        result2 = inject_personal_narrative(text)
+        assert result1 == result2

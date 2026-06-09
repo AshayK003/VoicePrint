@@ -22,5 +22,8 @@ textstat>=0.7
 numpy>=1.24
 nltk>=3.8
 
+# Stylometric lexical diversity metrics (optional, enhances AI-detection signals)
+pystylometry>=1.4
+
 # Testing
 pytest>=7.0

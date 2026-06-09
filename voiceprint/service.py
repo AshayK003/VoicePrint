@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 from .config import Config, validate_config, load_config
 from .pipeline import HumanizePipeline, PipelineResult
+from .memory import PromptMemory
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,9 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 import time
+
+# Session-level prompt memory for adaptive feedback loop
+_prompt_memory = PromptMemory()
 
 _LIMIT_WINDOW = 60  # seconds
 _LIMIT_MAX_CALLS = 10  # max humanize calls per window
@@ -99,15 +103,21 @@ def build_config(
     if base_url:
         config.base_url = base_url
 
-    # Resolve API key: explicit > env var
-    config.api_key = api_key
-    if not config.api_key:
-        preset = None
-        if provider:
-            from .config import PROVIDER_PRESETS
-            preset = PROVIDER_PRESETS.get(provider)
-        if preset and preset.get("env_key"):
-            config.api_key = os.getenv(preset["env_key"], "")
+    # Resolve API key: explicit > env var > registry
+    if api_key:
+        config.api_key = api_key
+    if provider:
+        from .config import PROVIDER_PRESETS, _read_registry_env
+        preset = PROVIDER_PRESETS.get(provider)
+        if not config.api_key:
+            if preset and preset.get("env_key"):
+                config.api_key = os.getenv(preset["env_key"], "")
+        # Absolute last resort: try registry (Windows persistence)
+        if not config.api_key:
+            config.api_key = _read_registry_env("OPENCODE_API_KEY")
+        # Resolve base_url from preset when not explicitly provided
+        if not base_url and preset and preset.get("base_url"):
+            config.base_url = preset["base_url"]
 
     return config
 
@@ -132,6 +142,7 @@ class HumanizeResult:
     signals: dict
     stages: list[str]
     error: str | None = None
+    perplexity: float | None = None
 
 
 def humanize(
@@ -166,6 +177,7 @@ def humanize(
             use_polish=use_polish,
             n_candidates=config.n_candidates,
             progress_callback=progress_callback,
+            memory=_prompt_memory,
         )
     except Exception as e:
         from .paraphrase import _sanitize_error
@@ -199,6 +211,7 @@ def humanize(
         burstiness_detail=result.burstiness_detail,
         signals=result.signals,
         stages=result.stages_applied,
+        perplexity=result.perplexity,
     )
 
 

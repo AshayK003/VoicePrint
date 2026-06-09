@@ -60,8 +60,8 @@ class TestBuildConfig:
 
     def test_empty_params_uses_defaults(self):
         config = build_config()
-        assert config.provider == "Google Gemini (Free)"
-        assert config.llm_model == "gemini/gemini-2.0-flash"
+        assert config.provider == "OpenCode Zen"
+        assert config.llm_model == "openai/nemotron-3-ultra-free"
 
     @patch.dict("os.environ", {"GEMINI_API_KEY": "env-key-123"})
     def test_env_var_fallback(self):

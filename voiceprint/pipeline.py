@@ -20,6 +20,7 @@ from .polish import polish
 from .similarity import check_similarity
 from .metrics import burstiness, burstiness_report, readability_scores
 from .patterns import pattern_score, compute_all_signals
+from .memory import PromptMemory
 
 
 # ---------------------------------------------------------------------------
@@ -39,6 +40,7 @@ class PipelineResult:
     burstiness_detail: dict
     signals: dict
     stages_applied: list[str]
+    perplexity: float | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -60,6 +62,7 @@ class HumanizePipeline:
         use_polish: bool = True,
         n_candidates: int | None = None,
         progress_callback: callable | None = None,
+        memory: PromptMemory | None = None,
     ) -> PipelineResult:
         """Run the full pipeline.
 
@@ -70,6 +73,7 @@ class HumanizePipeline:
             use_polish: Enable Stage 4 (style polish)
             n_candidates: Override number of LLM candidates
             progress_callback: fn(progress_float, message_str) for UI updates
+            memory: Optional PromptMemory for adaptive prompt level selection
 
         Returns:
             PipelineResult with humanized text and all metrics
@@ -86,6 +90,7 @@ class HumanizePipeline:
                 burstiness_detail=burstiness_report(text),
                 signals=compute_all_signals(text),
                 stages_applied=[],
+                perplexity=None,
             )
         stages: list[str] = []
         max_iter = self.config.max_iterations
@@ -105,17 +110,28 @@ class HumanizePipeline:
         best_text = scrubbed
         best_pai = 1.0
         best_detection: EnsembleResult | None = None
+        prev_p_ai: float | None = None  # for detection-guided refinement
 
         for iteration in range(max_iter):
             current = best_text if iteration > 0 and best_text != scrubbed else scrubbed
             iter_label = f" (attempt {iteration + 1}/{max_iter})" if max_iter > 1 else ""
 
-            # Stage 2: Adversarial paraphrasing
+            # Adaptive prompt level: use memory to bias which level works best
+            prompt_level = iteration
+            if memory and memory.total_runs() > 0:
+                learned = memory.best_level(default=prompt_level)
+                if learned != prompt_level:
+                    _report(0.12, f"Adaptive: using prompt level {learned} (learned from {memory.total_runs()} runs)")
+                    prompt_level = learned
+
+            # Stage 2: Adversarial paraphrasing (ninja mode — escalation across iterations)
             if use_paraphrase:
                 _report(0.15, f"Stage 2: Generating candidates{iter_label}...")
                 try:
                     candidates = generate_candidates(
-                        current, n=n_candidates, config=self.config
+                        current, n=n_candidates, config=self.config,
+                        prompt_level=prompt_level,
+                        prev_p_ai=prev_p_ai,
                     )
                     if candidates:
                         _report(0.65, f"Stage 2: Selecting best candidate{iter_label}...")
@@ -124,8 +140,10 @@ class HumanizePipeline:
                             stages.append("paraphrase")
                         # Post-paraphrase scrub: LLM re-introduces AI patterns
                         current = scrub(current)
+                    else:
+                        _report(0.65, f"Stage 2: LLM returned no candidates — using scrub-only{iter_label}")
                 except Exception as e:
-                    _report(0.65, f"Stage 2 skipped: {e}")
+                    _report(0.65, f"Stage 2 skipped (LLM failed): {e}")
 
             # Stage 3: Style polish
             if use_polish:
@@ -144,11 +162,34 @@ class HumanizePipeline:
                 logging.warning(f"Detection failed: {e}")
                 detection = EnsembleResult(p_ai=0.5, detectors=[], passed=False)
 
-            # Track best result across iterations
-            if detection.p_ai < best_pai:
+            # Augment detection with perplexity signal
+            try:
+                from .perplexity import perplexity_score as _ppl_score
+                ppl_s = _ppl_score(current)
+                if ppl_s is not None:
+                    detection.perplexity_score = ppl_s
+            except Exception:
+                pass
+
+            # Track previous p_ai for detection-guided refinement in next iteration
+            prev_p_ai = detection.p_ai
+
+            # Track best result across iterations (prefer lower p_ai, tiebreak on perplexity)
+            is_better = detection.p_ai < best_pai
+            if not is_better and detection.p_ai == best_pai and best_detection is not None:
+                # Tiebreak: prefer higher perplexity (more human-like)
+                cur_ppl = detection.perplexity_score or 0.0
+                best_ppl = best_detection.perplexity_score or 0.0
+                is_better = cur_ppl > best_ppl
+
+            if is_better:
                 best_pai = detection.p_ai
                 best_text = current
                 best_detection = detection
+
+            # Record in memory for adaptive feedback loop
+            if memory and "paraphrase" in stages:
+                memory.record(prompt_level, detection.p_ai)
 
             # Early exit if detection passes
             if detection.passed:
@@ -180,6 +221,13 @@ class HumanizePipeline:
         def _compute_signals():
             return compute_all_signals(best_text)
 
+        def _compute_perplexity():
+            try:
+                from .perplexity import raw_perplexity
+                return raw_perplexity(best_text)
+            except Exception:
+                return None
+
         with ThreadPoolExecutor(max_workers=3) as executor:
             fut_sim = executor.submit(_compute_similarity)
             fut_bur = executor.submit(_compute_burstiness)
@@ -187,6 +235,7 @@ class HumanizePipeline:
             fut_read = executor.submit(_compute_readability)
             fut_bur_det = executor.submit(_compute_burstiness_detail)
             fut_sig = executor.submit(_compute_signals)
+            fut_ppl = executor.submit(_compute_perplexity)
 
             final_sim = fut_sim.result()
             final_burstiness = fut_bur.result()
@@ -194,6 +243,7 @@ class HumanizePipeline:
             final_readability = fut_read.result()
             final_bur_det = fut_bur_det.result()
             final_signals = fut_sig.result()
+            final_ppl = fut_ppl.result()
 
         _report(1.0, "Done!")
         return PipelineResult(
@@ -207,6 +257,7 @@ class HumanizePipeline:
             burstiness_detail=final_bur_det,
             signals=final_signals,
             stages_applied=stages,
+            perplexity=final_ppl,
         )
 
     def detect_only(self, text: str) -> EnsembleResult:

@@ -55,3 +55,9 @@ docs/_build/
 
 # Agent instructions (local only)
 /AGENTS.md
+
+# Temp test scripts
+tmp_test_ppl.py
+
+# Dependency graph artifacts
+.dependencygraph/

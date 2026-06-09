@@ -64,32 +64,68 @@ def _sanitize_error(msg: str) -> str:
 # Paraphrasing prompt
 # ---------------------------------------------------------------------------
 
-PARAPHRASE_PROMPT = """\
-You are a human editor rewriting AI-generated text to pass as human-written.
+# ---------------------------------------------------------------------------
+# Ninja-mode progressive paraphrase prompts
+# Three escalating levels: 0=standard, 1=aggressive, 2=extreme
+# The pipeline cycles through levels across retry iterations.
+# ---------------------------------------------------------------------------
 
-DETECTION AVOIDANCE — these patterns get flagged instantly:
-- Uniform sentence length (all 15-25 words) → break this
-- Starting multiple sentences with "The", "This", "It", "In" → vary openers
-- Perfect parallel structure → break it unevenly
-- Modal verbs stacked (could, would, should) → remove most
-- No contractions → use them naturally
-- Transition words at sentence starts (Furthermore, Moreover, However) → cut or rephrase
-- Abstract subjects (It is important, There are) → use concrete subjects
-- Clean, symmetrical paragraph structure → make it messy
+NINJA_PROMPTS = [
+    # Level 0 — conversational pass: sound like a person explaining it
+    """\
+Rewrite the text below so it sounds like a real person explaining something to a friend over coffee.
 
-REWRITE RULES:
-1. Sentence rhythm: mix 4-word punches with 40-word long sentences. Never uniform.
-2. Openers: start sentences with pronouns, verbs, prepositions, fragments, questions. Never two in a row with the same.
-3. Voice: write like you're texting a friend who asked you to explain this. First/second person OK.
-4. Imperfection: add one short sentence fragment. Use a dash. Start a sentence with "And" or "But".
-5. Vocabulary: swap AI words (leverage→use, facilitate→help, comprehensive→full, robust→strong, utilize→use, furthermore→also, moreover→plus, nevertheless→still, consequently→so)
-6. Structure: merge short sentences. Split long ones. Rearrange order where meaning allows.
-7. Keep ALL facts, data, numbers, and core meaning identical. Do NOT add new information.
+HOW TO SOUND HUMAN:
+- Contract everything (don't, won't, can't, it's, they're, we've, I'm)
+- Vary sentence length wildly — some very short (2-5 words), some long (30+ words)
+- Start sentences differently every time — not the same word twice in a row
+- Use fragments sometimes ("Makes sense. Here's the thing.")
+- Drop one rhetorical question in naturally
+- Use conversational words: "so," "well," "basically," "actually," "though"
+- Swap out formal words: however→but, therefore→so, utilize→use, demonstrate→show, facilitate→help
+- Keep facts, data, and meaning identical
 
-Original text:
-{text}
+Here's the text:
+{text}""",
 
-Rewrite it now:"""
+    # Level 1 — blog-style pass: more personality and rhythm
+    """\
+Rewrite this text to sound like a skilled blog writer — punchy, clear, and personal. Think Derek Sivers or Paul Graham style.
+
+IMPORTANT:
+- Open with a strong short sentence (under 8 words)
+- Use "you" to speak directly to the reader
+- Have at least one very short sentence (2-4 words) for emphasis
+- Have at least one long winding sentence (35+ words)
+- Use contractions everywhere possible
+- Start at least one sentence with "And", "But", or "So"
+- Drop in a short fragment or interjection ("Exactly." "No surprise there.")
+- Keep facts and meaning intact
+
+Text to rewrite:
+{text}""",
+
+    # Level 2 — casual/raw pass: sound like a smart Reddit comment or personal email
+    """\
+Rewrite this in a completely casual voice. Sound like a smart person sharing their take — like a thoughtful Reddit comment or an email to a colleague you know well.
+
+KEY THINGS:
+- Write like you talk — casual, direct, slightly opinionated
+- Use "honestly," "frankly," or "to be fair" somewhere
+- Add one personal aside or opinion marker ("at least that's how I see it")
+- Include one incomplete thought or fragment
+- Use a dash or parentheses for a natural aside
+- Vary sentence length from very short (2 words) to very long (35+)
+- Use contractions 100% of the time where possible
+- Never use words like "leverage," "utilize," "facilitate," "innovative," "transformative"
+- Keep all facts and meaning exactly the same
+
+Go:
+{text}""",
+]
+
+# Backward-compatible alias
+PARAPHRASE_PROMPT = NINJA_PROMPTS[0]
 
 
 # ---------------------------------------------------------------------------
@@ -150,14 +186,40 @@ def generate_candidate(
     text: str,
     config: Config | None = None,
     temperature: float | None = None,
+    prompt_level: int = 0,
+    prev_p_ai: float | None = None,
 ) -> str:
-    """Generate a single paraphrase candidate via LLM API."""
+    """Generate a single paraphrase candidate via LLM API.
+
+    Args:
+        prompt_level: Index into NINJA_PROMPTS (0=standard, 1=aggressive, 2=extreme).
+            Clamped to valid range.
+        prev_p_ai: Previous detection score (0-1). When provided, a feedback
+            line is injected into the prompt for detection-guided refinement.
+    """
     config = config or load_config()
     temp = temperature if temperature is not None else config.llm_temperature
 
+    prompt_idx = max(0, min(prompt_level, len(NINJA_PROMPTS) - 1))
+    prompt_template = NINJA_PROMPTS[prompt_idx]
+
+    # Detection-guided refinement: inject previous score into prompt
+    feedback = ""
+    if prev_p_ai is not None:
+        if prev_p_ai < 0.3:
+            feedback = f"\nNOTE: Previous attempt scored {prev_p_ai:.2f} — close but needs minor structure polish.\n"
+        elif prev_p_ai < 0.6:
+            feedback = f"\nNOTE: Previous attempt scored {prev_p_ai:.2f} — still detectable. Push harder on sentence rhythm and vocabulary.\n"
+        else:
+            feedback = f"\nNOTE: Previous attempt scored {prev_p_ai:.2f} — clearly AI. Rewrite completely from scratch. Break every pattern.\n"
+
+    content = prompt_template.format(text=text)
+    if feedback:
+        content = content.rstrip() + feedback
+
     kwargs = _litellm_kwargs(config, temp)
     kwargs["messages"] = [
-        {"role": "user", "content": PARAPHRASE_PROMPT.format(text=text)}
+        {"role": "user", "content": content}
     ]
 
     response = litellm.completion(**kwargs)
@@ -169,8 +231,15 @@ def generate_candidates(
     text: str,
     n: int | None = None,
     config: Config | None = None,
+    prompt_level: int = 0,
+    prev_p_ai: float | None = None,
 ) -> list[str]:
-    """Generate N paraphrase candidates in parallel with varied temperatures."""
+    """Generate N paraphrase candidates in parallel with varied temperatures.
+
+    Args:
+        prompt_level: Index into NINJA_PROMPTS passed to each candidate.
+        prev_p_ai: Previous detection score for detection-guided refinement.
+    """
     config = config or load_config()
     n = n or config.n_candidates
 
@@ -180,7 +249,10 @@ def generate_candidates(
 
     def _generate_one(idx: int, temp: float) -> str | None:
         try:
-            return generate_candidate(text, config, temperature=temp)
+            return generate_candidate(
+                text, config, temperature=temp, prompt_level=prompt_level,
+                prev_p_ai=prev_p_ai,
+            )
         except Exception as e:
             logger.warning(f"Candidate {idx+1} failed: {_sanitize_error(str(e))}")
             return None
@@ -230,6 +302,23 @@ def select_best(
     if not scored:
         scored = [(c, sim_map[c]) for c in candidates]
     scored.sort(key=lambda x: x[1], reverse=True)
+
+    # Step 2b: Reject candidates with perplexity below threshold (too predictable = AI-like)
+    try:
+        from .perplexity import raw_perplexity as _raw_ppl
+        filtered = []
+        for c, s in scored:
+            try:
+                ppl = _raw_ppl(c)
+                if ppl is None or ppl >= 30.0:
+                    filtered.append((c, s))
+            except Exception:
+                filtered.append((c, s))
+        scored = filtered
+    except Exception:
+        pass
+    if not scored:
+        scored = [(c, sim_map[c]) for c in candidates] if candidates else []
 
     # Step 3: Run detection ONLY on top candidates (expensive — model inference)
     top_n = min(len(scored), 3)

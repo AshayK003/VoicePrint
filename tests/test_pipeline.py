@@ -51,7 +51,7 @@ class TestHumanizePipeline:
             "Furthermore, the results are very important.",
             use_polish=False,
         )
-        assert mock_gen.call_count == 2
+        assert mock_gen.call_count == 3
 
     @patch("voiceprint.pipeline.generate_candidates", side_effect=Exception("API error"))
     def test_paraphrase_failure_continues(self, mock_gen):
@@ -211,6 +211,36 @@ class TestHumanizePipeline:
         assert result.humanized is not None
         assert result.stages_applied == ["scrub", "detect"]
 
+    @patch("voiceprint.pipeline.generate_candidates")
+    @patch("voiceprint.pipeline.select_best")
+    def test_prev_p_ai_passed_to_generate_candidates(self, mock_select, mock_gen):
+        """Detection score from iteration N should be passed to iteration N+1."""
+        mock_gen.return_value = ["Cand"]
+        mock_select.return_value = ("Selected.", 0.85)
+
+        config = Config(max_iterations=3)
+        pipeline = HumanizePipeline(config=config)
+        pipeline.ensemble.detect = MagicMock(
+            side_effect=[
+                _fake_ensemble_result(p_ai=0.6),
+                _fake_ensemble_result(p_ai=0.7),
+                _fake_ensemble_result(p_ai=0.8),
+            ]
+        )
+        pipeline.run(
+            "Furthermore, the results are very important.",
+            use_polish=False,
+        )
+
+        assert mock_gen.call_count == 3
+        call1_kwargs = mock_gen.call_args_list[0].kwargs
+        call2_kwargs = mock_gen.call_args_list[1].kwargs
+        call3_kwargs = mock_gen.call_args_list[2].kwargs
+        assert "prev_p_ai" in call1_kwargs
+        assert call1_kwargs["prev_p_ai"] is None
+        assert call2_kwargs["prev_p_ai"] == 0.6
+        assert call3_kwargs["prev_p_ai"] == 0.7
+
 
 # ---------------------------------------------------------------------------
 # Binoculars detection tests
@@ -306,6 +336,7 @@ class TestPipelineEdgeCases:
         pipeline.ensemble.detect = MagicMock(side_effect=Exception("Model crashed"))
         result = pipeline.run(
             "Furthermore, the results are very important.",
+            use_paraphrase=False,
             use_polish=False,
         )
         assert result.detection.p_ai == 0.5

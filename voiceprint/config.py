@@ -35,8 +35,8 @@ PROVIDER_PRESETS: dict[str, dict[str, str]] = {
         "env_key": "ANTHROPIC_API_KEY",
     },
     "OpenCode Zen": {
-        "model": "opencode/mimo-v2.5-free",
-        "base_url": "",
+        "model": "openai/nemotron-3-ultra-free",
+        "base_url": "https://opencode.ai/zen/v1",
         "env_key": "OPENCODE_API_KEY",
     },
     "Custom (OpenAI-compatible)": {
@@ -85,8 +85,8 @@ PROVIDER_MODELS: dict[str, list[str]] = {
         "mistral/codestral-latest",
     ],
     "OpenCode Zen": [
-        "opencode/mimo-v2.5-free",
-        "opencode/mimo-v2.5-pro",
+        "openai/nemotron-3-ultra-free",
+        "openai/mimo-v2.5-free",
     ],
     "Custom (OpenAI-compatible)": [
         "",
@@ -128,23 +128,38 @@ PROVIDER_BASE_URLS: dict[str, list[str]] = {
 @dataclass
 class Config:
     # LLM Provider
-    provider: str = "Google Gemini (Free)"
+    provider: str = "OpenCode Zen"
     api_key: str = ""
-    base_url: str = ""
-    llm_model: str = "gemini/gemini-2.0-flash"
+    base_url: str = "https://opencode.ai/zen/v1"
+    llm_model: str = "openai/nemotron-3-ultra-free"
     llm_temperature: float = 1.0
     llm_max_tokens: int = 2048
 
     # Paraphrasing
-    n_candidates: int = 8  # Best-of-N (8 for better evasion diversity)
+    n_candidates: int = 1  # Best-of-N (increase for better evasion at cost of speed)
     similarity_threshold: float = 0.68  # Min cosine similarity to original (lower = more transformation allowed)
-    max_iterations: int = 2  # Max paraphrase→polish→detect retry cycles
+    max_iterations: int = 3  # Max paraphrase→polish→detect retry cycles
 
     # Detection
     primary_detector: str = "openai-community/roberta-large-openai-detector"
     secondary_detector: str = "Hello-SimpleAI/chatgpt-detector-roberta"
     detection_threshold: float = 0.5  # Below this = "human"
     use_models: bool = True  # False = skip all model loading, use heuristics only
+
+    def __post_init__(self) -> None:
+        """No automatic env/registry fallback here.
+        That is handled by build_config() and load_config() explicitly.
+        """
+
+
+def _read_registry_env(name: str) -> str:
+    """Fallback: read User-level env var from Windows registry."""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
+            return winreg.QueryValueEx(key, name)[0]
+    except (ImportError, FileNotFoundError, OSError):
+        return ""
 
 
 def load_config() -> Config:
@@ -155,6 +170,16 @@ def load_config() -> Config:
         config.llm_model = model
     if key := os.getenv("VOICEPRINT_SIMILARITY_THRESHOLD"):
         config.similarity_threshold = float(key)
+
+    # Fallback: if env key missing for default provider, try registry
+    if not os.getenv("OPENCODE_API_KEY"):
+        reg_key = _read_registry_env("OPENCODE_API_KEY")
+        if reg_key:
+            os.environ["OPENCODE_API_KEY"] = reg_key
+
+    # Populate api_key from env after registry fallback
+    if not config.api_key and os.getenv("OPENCODE_API_KEY"):
+        config.api_key = os.getenv("OPENCODE_API_KEY")
 
     return config
 
@@ -178,6 +203,13 @@ def detect_provider_from_key(api_key: str) -> dict[str, str] | None:
             "base_url": "",
         }
     if key.startswith("sk-") and not key.startswith("sk-ant-"):
+        # OpenCode Zen keys are longer (79 chars) than typical OpenAI keys (< 60)
+        if len(key) > 60:
+            return {
+                "provider": "OpenCode Zen",
+                "model": "openai/nemotron-3-ultra-free",
+                "base_url": "https://opencode.ai/zen/v1",
+            }
         return {
             "provider": "OpenAI",
             "model": "gpt-4o-mini",

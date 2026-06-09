@@ -2,6 +2,7 @@
 
 import pytest
 from voiceprint.patterns import (
+    PYSTYLOMETRY_AVAILABLE,
     signal_ai_vocabulary,
     signal_transition_density,
     signal_sentence_start_uniformity,
@@ -261,16 +262,18 @@ class TestSignalModalityOverload:
 # ---------------------------------------------------------------------------
 
 class TestComputeAllSignals:
-    def test_returns_all_12_signals(self):
+    BASE_KEYS = {
+        "ai_vocabulary", "transition_density", "sentence_start_uniformity",
+        "tricolons", "em_dash_density", "hedging", "contraction_deficit",
+        "ngram_repetition", "type_token_ratio", "passive_voice",
+        "abstract_subjects", "modality_overload",
+    }
+    PYSTYLOMETRY_KEYS = {"pystylometry_mtld", "pystylometry_yule_k", "pystylometry_hapax"}
+
+    def test_returns_all_base_signals(self):
         signals = compute_all_signals("Hello world.")
-        assert len(signals) == 12
-        expected_keys = {
-            "ai_vocabulary", "transition_density", "sentence_start_uniformity",
-            "tricolons", "em_dash_density", "hedging", "contraction_deficit",
-            "ngram_repetition", "type_token_ratio", "passive_voice",
-            "abstract_subjects", "modality_overload",
-        }
-        assert set(signals.keys()) == expected_keys
+        assert len(signals) >= 12
+        assert self.BASE_KEYS.issubset(set(signals.keys()))
 
     def test_all_values_float(self):
         signals = compute_all_signals("Hello world.")
@@ -278,9 +281,22 @@ class TestComputeAllSignals:
             assert isinstance(v, float)
 
     def test_all_values_in_range(self):
-        signals = compute_all_signals("Some normal text with enough words to test.")
+        signals = compute_all_signals("Some normal text with enough words to test all signals properly throughout the analysis pipeline.")
         for v in signals.values():
             assert 0.0 <= v <= 1.0
+
+    @pytest.mark.skipif(not PYSTYLOMETRY_AVAILABLE, reason="pystylometry not installed")
+    def test_pystylometry_signals_present_for_long_text(self):
+        signals = compute_all_signals("This is a longer piece of text with enough words to trigger the pystylometry lexical analysis and verify the new signals are returned correctly for AI detection purposes.")
+        for key in self.PYSTYLOMETRY_KEYS:
+            assert key in signals, f"Missing pystylometry signal: {key}"
+        assert len(signals) >= 15
+
+    @pytest.mark.skipif(not PYSTYLOMETRY_AVAILABLE, reason="pystylometry not installed")
+    def test_pystylometry_short_text_no_signals(self):
+        signals = compute_all_signals("Too short.")
+        for key in self.PYSTYLOMETRY_KEYS:
+            assert key not in signals
 
 
 class TestPatternScore:

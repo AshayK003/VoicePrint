@@ -102,7 +102,7 @@ with st.sidebar:
     auto = detect_provider_from_key(api_key) if api_key else None
 
     if "provider" not in st.session_state:
-        st.session_state.provider = list(PROVIDER_PRESETS.keys())[0]
+        st.session_state.provider = "OpenCode Zen"
     if "base_url" not in st.session_state:
         st.session_state.base_url = ""
     if "model" not in st.session_state:
@@ -190,7 +190,14 @@ with st.sidebar:
     @st.cache_data
     def _check_env_key(env_key_name: str) -> bool:
         import os
-        return bool(env_key_name and os.getenv(env_key_name))
+        if os.getenv(env_key_name):
+            return True
+        try:
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
+                return bool(winreg.QueryValueEx(key, env_key_name)[0])
+        except Exception:
+            return False
 
     env_key_name = preset.get("env_key", "")
     has_env_key = _check_env_key(env_key_name) if env_key_name else False
@@ -554,13 +561,13 @@ if result:
                 unsafe_allow_html=True,
             )
 
-        st.text_area(
-            "Humanized text",
-            value=result.text,
-            height=280,
-            disabled=True,
-            label_visibility="visible",
-            key="output_text",
+        st.markdown(
+            f'<div style="background:#1a1a2e;border:1px solid #333;border-radius:8px;'
+            f'padding:16px;min-height:270px;max-height:400px;overflow-y:auto;'
+            f'font-size:14px;line-height:1.7;color:#e0e0e0;white-space:pre-wrap;'
+            f'font-family:-apple-system,BlinkMacSystemFont,sans-serif;">'
+            f'{result.text}</div>',
+            unsafe_allow_html=True,
         )
 
         if result.stages:
@@ -571,6 +578,19 @@ if result:
                 f'<div class="vp-stage-list">{stage_html}</div>',
                 unsafe_allow_html=True,
             )
+
+    # Paraphrase status badge
+    has_llm = "paraphrase" in (result.stages or [])
+    if has_llm:
+        st.markdown(
+            '<div class="vp-badge vp-badge-success">Paraphrase: Applied</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            '<div class="vp-badge vp-badge-warning">Paraphrase: Skipped (no LLM)</div>',
+            unsafe_allow_html=True,
+        )
 
     st.divider()
 

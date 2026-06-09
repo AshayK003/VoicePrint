@@ -53,6 +53,7 @@ class TestLitellmKwargs:
     def test_no_api_key_omitted(self):
         config = Config(llm_model="gpt-4o-mini", api_key="")
         kwargs = _litellm_kwargs(config, temperature=1.0)
+        # api_key omitted when empty (env/registry fallback handled by build_config)
         assert "api_key" not in kwargs
 
 
@@ -97,6 +98,50 @@ class TestGenerateCandidate:
         call_kwargs = mock_completion.call_args
         assert call_kwargs.kwargs["temperature"] == 0.7
 
+    @patch("voiceprint.paraphrase.litellm.completion")
+    def test_prev_p_ai_includes_feedback(self, mock_completion):
+        """Detection-guided refinement: prev_p_ai should add feedback to prompt."""
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock(message=MagicMock(content="Rewritten."))]
+        mock_completion.return_value = mock_response
+
+        config = Config(llm_model="gpt-4o-mini", api_key="sk-test")
+        generate_candidate("Original text.", config=config, prev_p_ai=0.35)
+
+        call_kwargs = mock_completion.call_args
+        prompt_content = call_kwargs.kwargs["messages"][0]["content"]
+        assert "Previous attempt scored" in prompt_content
+        assert "0.35" in prompt_content
+
+    @patch("voiceprint.paraphrase.litellm.completion")
+    def test_prev_p_ai_high_escalates_tone(self, mock_completion):
+        """prev_p_ai ≥ 0.6 should add 'clearly AI' feedback."""
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock(message=MagicMock(content="Rewritten."))]
+        mock_completion.return_value = mock_response
+
+        config = Config(llm_model="gpt-4o-mini", api_key="sk-test")
+        generate_candidate("Text.", config=config, prev_p_ai=0.75)
+
+        call_kwargs = mock_completion.call_args
+        prompt_content = call_kwargs.kwargs["messages"][0]["content"]
+        assert "clearly AI" in prompt_content
+        assert "Rewrite completely from scratch" in prompt_content
+
+    @patch("voiceprint.paraphrase.litellm.completion")
+    def test_prev_p_ai_none_no_feedback(self, mock_completion):
+        """When prev_p_ai is None, no feedback line should appear."""
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock(message=MagicMock(content="Rewritten."))]
+        mock_completion.return_value = mock_response
+
+        config = Config(llm_model="gpt-4o-mini", api_key="sk-test")
+        generate_candidate("Text.", config=config, prev_p_ai=None)
+
+        call_kwargs = mock_completion.call_args
+        prompt_content = call_kwargs.kwargs["messages"][0]["content"]
+        assert "Previous attempt scored" not in prompt_content
+
 
 # ---------------------------------------------------------------------------
 # generate_candidates
@@ -105,7 +150,7 @@ class TestGenerateCandidate:
 class TestGenerateCandidates:
     @patch("voiceprint.paraphrase.generate_candidate")
     def test_returns_n_candidates(self, mock_gen):
-        mock_gen.side_effect = lambda text, config, temperature: f"Candidate {temperature}"
+        mock_gen.side_effect = lambda text, config, temperature, **kw: f"Candidate {temperature}"
         config = Config(llm_model="gpt-4o-mini", n_candidates=3)
         candidates = generate_candidates("Text", n=3, config=config)
         assert len(candidates) == 3
@@ -194,6 +239,51 @@ class TestSelectBest:
         best, score = select_best("Original", ["Only one"], config=Config(), detector=detector)
         assert best == "Only one"
         assert score == 0.88
+
+    @patch("voiceprint.paraphrase.check_similarity")
+    @patch("voiceprint.perplexity.raw_perplexity")
+    def test_rejects_low_perplexity_candidates(self, mock_ppl, mock_sim):
+        """Candidates with perplexity < 30 should be filtered out."""
+        mock_sim.return_value = 0.85
+        mock_ppl.side_effect = [25.0, 45.0, 20.0]
+        detector = self._mock_detector([0.3])
+        best, score = select_best(
+            "Original",
+            ["Low ppl A", "Mid ppl B", "Low ppl C"],
+            config=Config(),
+            detector=detector,
+        )
+        assert best == "Mid ppl B"
+
+    @patch("voiceprint.paraphrase.check_similarity")
+    @patch("voiceprint.perplexity.raw_perplexity")
+    def test_perplexity_all_low_falls_back_to_all(self, mock_ppl, mock_sim):
+        """If all candidates fail perplexity check, fall back to full list."""
+        mock_sim.return_value = 0.85
+        mock_ppl.side_effect = [20.0, 15.0, 10.0]
+        detector = self._mock_detector([0.3, 0.5, 0.2])
+        best, score = select_best(
+            "Original",
+            ["Low A", "Low B", "Low C"],
+            config=Config(),
+            detector=detector,
+        )
+        assert best is not None
+
+    @patch("voiceprint.paraphrase.check_similarity")
+    @patch("voiceprint.perplexity.raw_perplexity")
+    def test_perplexity_none_does_not_filter(self, mock_ppl, mock_sim):
+        """When perplexity returns None (model unavailable), no filtering."""
+        mock_sim.return_value = 0.85
+        mock_ppl.return_value = None
+        detector = self._mock_detector([0.3])
+        best, score = select_best(
+            "Original",
+            ["Candidate A"],
+            config=Config(),
+            detector=detector,
+        )
+        assert best == "Candidate A"
 
     @patch("voiceprint.paraphrase.check_similarity")
     def test_detector_exception_uses_neutral_pai(self, mock_sim):

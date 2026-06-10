@@ -14,6 +14,7 @@ from voiceprint.config import (
     detect_provider_from_key,
 )
 from voiceprint.service import build_config, humanize, detect, InputError
+from voiceprint.paraphrase import test_llm_connection
 
 
 # ---------------------------------------------------------------------------
@@ -207,7 +208,7 @@ with st.sidebar:
         if auto:
             st.markdown(
                 f'<div class="vp-badge vp-badge-success">'
-                f'Detected: {auto["provider"]}</div>',
+                f'🔍 Detected: {auto["provider"]}</div>',
                 unsafe_allow_html=True,
             )
         else:
@@ -226,6 +227,62 @@ with st.sidebar:
         st.markdown(
             '<div class="vp-badge vp-badge-error">'
             'No API key set</div>',
+            unsafe_allow_html=True,
+        )
+
+    # --- Test Connection button ---
+    has_any_key = has_manual_key or has_env_key or bool(api_key)
+    if has_any_key:
+        test_col1, test_col2 = st.columns([2, 1])
+        with test_col1:
+            test_clicked = st.button("🔌 Test Connection", use_container_width=True, key="test_btn")
+        with test_col2:
+            if "conn_status" in st.session_state:
+                cs = st.session_state.conn_status
+                if cs["connected"]:
+                    st.markdown(
+                        '<div class="vp-badge vp-badge-success">✓</div>',
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        '<div class="vp-badge vp-badge-error">✗</div>',
+                        unsafe_allow_html=True,
+                    )
+
+        if test_clicked:
+            with st.spinner("Connecting..."):
+                cfg = build_config(
+                    provider=st.session_state.provider,
+                    api_key=api_key or "",
+                    base_url=st.session_state.base_url,
+                    model=st.session_state.model,
+                )
+                cs = test_llm_connection(cfg)
+                st.session_state.conn_status = cs
+                if cs["connected"]:
+                    st.toast("Connected successfully!", icon="✅")
+                else:
+                    st.toast(f"Connection failed", icon="❌")
+                    if cs.get("error"):
+                        st.caption(f"Error: {cs['error']}")
+
+    # --- Best free model indicator ---
+    _best_free_models = {
+        "Google Gemini (Free)": "gemini-2.0-flash (stable)\ngemini-1.5-flash (fallback)",
+        "OpenCode Zen": "deepseek-v3-0615-free (best overall)\nnemotron-3-ultra-free (fast)",
+        "Groq (Free)": "llama-3.3-70b (fastest)\nllama-4-scout (latest)",
+        "Mistral (Free)": "mistral-tiny (fast)\nmistral-small-latest (quality)",
+        "OpenAI": "gpt-4o-mini (cheapest)",
+        "Anthropic": "claude-3-haiku (cheapest)",
+        "Custom (OpenAI-compatible)": "",
+    }
+    tip = _best_free_models.get(provider, "")
+    if tip:
+        st.markdown(
+            f'<div style="font-size:11px;color:#6b7280;margin-top:4px;'
+            f'padding:6px 10px;background:#f3f4f6;border-radius:6px;line-height:1.5;">'
+            f'⭐ Best free models:<br>{tip}</div>',
             unsafe_allow_html=True,
         )
 
@@ -365,6 +422,8 @@ def _parse_stage(msg: str, pct: float) -> str | None:
         return "Polish"
     if "Stage 4" in msg:
         return "Detect"
+    if "Stage 5" in msg:
+        return "Metrics"
     if pct < 0.15:
         return None
     if pct < 0.70:

@@ -52,14 +52,13 @@ class TestInjectRhetoricalQuestions:
         result = inject_rhetorical_questions(text)
         assert result == text
 
-    def test_injection_at_4th_sentence(self):
-        """6+ sentences: injection after 4th."""
-        text = "S1. S2. S3. S4. S5. S6."
+    def test_preserves_all_sentences(self):
+        """Must not drop or merge sentences."""
+        text = "S1. S2. S3. S4. S5. S6. S7. S8. S9. S10."
         result = inject_rhetorical_questions(text)
-        assert len(result) > len(text)
-        # Should have 7 sentences now (original 6 + 1 question)
-        parts = re.split(r"(?<=[.!?])\s+", result)
-        assert len(parts) >= 7
+        # All original sentences still present
+        for i in range(1, 11):
+            assert f"S{i}." in result, f"S{i}. missing from result"
 
     def test_deterministic(self):
         """Same text always produces the same output (RNG seeded from text hash)."""

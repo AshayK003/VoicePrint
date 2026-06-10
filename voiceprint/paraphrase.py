@@ -63,61 +63,117 @@ def _sanitize_error(msg: str) -> str:
 
 # ---------------------------------------------------------------------------
 # Ninja-mode progressive paraphrase prompts
-# Three escalating levels: 0=standard, 1=aggressive, 2=extreme
+# Eight escalating levels: 0-7 targeting increasing detection evasion
 # The pipeline cycles through levels across retry iterations.
+# Each level targets specific GPTZero detection signals.
 # ---------------------------------------------------------------------------
 
 NINJA_PROMPTS = [
-    # Level 0 — conversational pass: sound like a person explaining it
+    # Level 0 — conversational rewrite: sound like a real person
     """\
-Rewrite the text below so it sounds like a real person explaining something to a friend over coffee.
+Rewrite the following text in a natural, conversational voice. Make it sound like someone explaining this to a friend — not writing an essay.
 
-HOW TO SOUND HUMAN:
-- Contract everything (don't, won't, can't, it's, they're, we've, I'm)
-- Vary sentence length wildly — some very short (2-5 words), some long (30+ words)
-- Start sentences differently every time — not the same word twice in a row
-- Use fragments sometimes ("Makes sense. Here's the thing.")
-- Drop one rhetorical question in naturally
-- Use conversational words: "so," "well," "basically," "actually," "though"
-- Swap out formal words: however→but, therefore→so, utilize→use, demonstrate→show, facilitate→help
-- Keep facts, data, and meaning identical
+- Use natural contractions and casual phrasing throughout
+- Vary sentence lengths: mix short punchy sentences with longer flowing ones
+- Keep the same facts and meaning — don't add or remove information
+- Don't sound formal, academic, or like a marketing brochure
+
+Text:
+{text}""",
+
+    # Level 1 — direct and personal: confident but natural
+    """\
+Rewrite this text to sound like someone with real experience on the topic. Warm, direct, personal — like a knowledgeable colleague explaining something clearly.
+
+- Write as if you're talking to one person, not an audience
+- Use "you" naturally where it fits
+- Mix up sentence openings — don't start every sentence the same way
+- Keep every fact accurate. Don't invent anything.
+- Drop the formal tone entirely. This should read like someone's honest take.
 
 Here's the text:
 {text}""",
 
-    # Level 1 — blog-style pass: more personality and rhythm
+    # Level 2 — raw and unfiltered: like a smart person's casual take
     """\
-Rewrite this text to sound like a skilled blog writer — punchy, clear, and personal. Think Derek Sivers or Paul Graham style.
+Rewrite this to sound completely natural — like a thoughtful person sharing their perspective in a conversation, not writing for publication.
 
-IMPORTANT:
-- Open with a strong short sentence (under 8 words)
-- Use "you" to speak directly to the reader
-- Have at least one very short sentence (2-4 words) for emphasis
-- Have at least one long winding sentence (35+ words)
-- Use contractions everywhere possible
-- Start at least one sentence with "And", "But", or "So"
-- Drop in a short fragment or interjection ("Exactly." "No surprise there.")
-- Keep facts and meaning intact
+- Write how people actually talk: not perfectly polished, but clear
+- Use one or two natural asides or tangents if they fit
+- Vary rhythm: short sentences land harder when surrounded by longer ones
+- Avoid corporate or academic language completely
+- Keep all facts and meaning exactly as they are
+- This should read like someone's honest, unfiltered take
 
-Text to rewrite:
+Text:
 {text}""",
 
-    # Level 2 — casual/raw pass: sound like a smart Reddit comment or personal email
+    # Level 3 — anti-mechanical precision: break GPTZero's "Mechanical Precision" signal
+    # GPTZero penalizes uniform sentence structure and perfect grammar.
+    # This level deliberately varies writing quality across sentences.
     """\
-Rewrite this in a completely casual voice. Sound like a smart person sharing their take — like a thoughtful Reddit comment or an email to a colleague you know well.
+Rewrite this text so it reads like someone writing quickly — not perfectly polished, but clear and natural. The key is to make each sentence feel independently written, not like they all came from the same template.
 
-KEY THINGS:
-- Write like you talk — casual, direct, slightly opinionated
-- Use "honestly," "frankly," or "to be fair" somewhere
-- Add one personal aside or opinion marker ("at least that's how I see it")
-- Include one incomplete thought or fragment
-- Use a dash or parentheses for a natural aside
-- Vary sentence length from very short (2 words) to very long (35+)
-- Use contractions 100% of the time where possible
-- Never use words like "leverage," "utilize," "facilitate," "innovative," "transformative"
-- Keep all facts and meaning exactly the same
+Vary the writing quality across sentences. Some sentences should feel carefully thought out. Others should feel more like quick thoughts. Mix short fragments with longer, more complex sentences. Let the rhythm feel organic, not mechanical.
 
-Go:
+Keep every fact accurate. Don't add or remove information. The goal is to make this read like someone's authentic writing, not like a polished article.
+
+Text:
+{text}""",
+
+    # Level 4 — anti-robotic formality: opinionated and conversational
+    # GPTZero flags writing without personality or stance as "Robotic Formality"
+    # Inject opinion, take a side, use natural conviction
+    """\
+Rewrite this so it sounds like someone who genuinely knows this stuff sharing their honest perspective. Take a stance where appropriate — AI-generated text tends to stay neutral on everything, which is actually a dead giveaway.
+
+Use natural conviction. If something is clearly good or bad, say so. If there's debate around the topic, acknowledge it with a real human perspective. But don't force opinions where they don't belong — keep it authentic.
+
+Use natural conversational rhythms: rhetorical questions, light asides, the occasional parenthetical thought. Write like a smart person talking, not writing for publication. Keep all facts accurate.
+
+Text:
+{text}""",
+
+    # Level 5 — anti-sophisticated clarity: break GPTZero's "Sophisticated Clarity"
+    # GPTZero flags overly clean, perfectly clear reasoning as AI.
+    # This level deliberately roughens the presentation — not incorrect, just not pristine.
+    """\
+Rewrite this text to read like someone with real, hands-on experience — the kind of person who knows their stuff but isn't trying to impress anyone with how well they write.
+
+The writing should feel direct and a little rough around the edges. Use punchy sentences. Lead with the most interesting point, not a careful transition. Drop any unnecessary setup or context. If something is obvious, say it plainly instead of building up to it.
+
+The tone should suggest someone who's been around the block on this topic — confident enough to be casual, direct enough to skip the formalities. Keep every fact accurate, nothing invented.
+
+Text:
+{text}""",
+
+    # Level 6 — anti-pattern: break every structural pattern GPTZero looks for
+    # GPTZero detects consistent patterns in sentence structure, opening variety, and paragraph flow
+    # This level deliberately varies the writing style sentence by sentence
+    """\
+Rewrite this text so that no two consecutive sentences follow the same structural pattern. The goal is to make the writing feel genuinely organic — like you're reading something a person actually wrote, not text that follows consistent formatting rules.
+
+Each sentence should feel like it was written independently. Vary how sentences start from one to the next. Some should begin with subjects, others with verbs, others with prepositional phrases, others with conjunctions. Vary the length dramatically — some sentences under 5 words, some over 30.
+
+The overall effect should feel natural, not forced. Don't draw attention to the variation — it should just read like normal human writing where no two sentences are mechanically identical.
+
+Preserve all facts. Don't add or remove information.
+
+Text:
+{text}""",
+
+    # Level 7 — maximum evasion: aggressive humanization for stubbornly AI-detected text
+    # Used when all other levels fail. Simulates a dictation-style, highly personal voice.
+    """\
+Rewrite this text completely from scratch. Imagine you're explaining this to a friend over coffee — you're knowledgeable about it, but you're not delivering a prepared speech. You're thinking as you speak.
+
+Use a dictation-like quality: sentences run into each other naturally, some trail off, some restart. Use contractions heavily. Throw in an occasional self-correction ("actually that's not quite right — "). Use one or two natural digressions. 
+
+The most important thing: this should sound unmistakably like a human being wrote it. Not a writer being casual for effect — just a normal person sharing what they know. Keep it genuine. Don't overdo the casual affectations. Just write like a real person talks.
+
+Keep every fact intact. Don't invent anything.
+
+Text:
 {text}""",
 ]
 
@@ -153,6 +209,27 @@ def _validate_base_url(url: str) -> str:
     elif parsed.scheme != "https":
         raise ValueError(f"Unsupported scheme '{parsed.scheme}' in base URL. Use https://.")
     return url
+
+
+def test_llm_connection(config: Config, timeout: int = 15) -> dict:
+    """Test LLM connectivity. Returns dict with 'connected' bool and optional 'error'.
+
+    Makes a minimal 1-token completion call. No streaming, no side effects.
+    """
+    import litellm
+
+    try:
+        kwargs = _litellm_kwargs(config, temperature=0.5)
+        kwargs["messages"][0]["content"] = "Say hi"
+        kwargs["max_tokens"] = 2
+        kwargs["timeout"] = timeout
+
+        resp = litellm.completion(**kwargs)
+        if resp and resp.choices and len(resp.choices) > 0:
+            return {"connected": True, "error": None}
+        return {"connected": False, "error": "No response from API"}
+    except Exception as e:
+        return {"connected": False, "error": _sanitize_error(str(e))}
 
 
 def _litellm_kwargs(config: Config, temperature: float) -> dict:
@@ -201,14 +278,15 @@ def generate_candidate(
     prompt_template = NINJA_PROMPTS[prompt_idx]
 
     # Detection-guided refinement: inject previous score into prompt
+    # The thresholds target GPTZero's stricter detection (p_ai > 0.2 is flagged)
     feedback = ""
     if prev_p_ai is not None:
         if prev_p_ai < 0.3:
-            feedback = f"\nNOTE: Previous attempt scored {prev_p_ai:.2f} — close but needs minor structure polish.\n"
-        elif prev_p_ai < 0.6:
-            feedback = f"\nNOTE: Previous attempt scored {prev_p_ai:.2f} — still detectable. Push harder on sentence rhythm and vocabulary.\n"
+            feedback = f"\nNOTE: Previous attempt scored {prev_p_ai:.2f} — almost there but still shows subtle AI patterns. Vary sentence openings and add more natural rhythm.\n"
+        elif prev_p_ai < 0.5:
+            feedback = f"\nNOTE: Previous attempt scored {prev_p_ai:.2f} — still too clean. Make sentences less uniform. Add some personality. Vary the writing quality between sentences.\n"
         else:
-            feedback = f"\nNOTE: Previous attempt scored {prev_p_ai:.2f} — clearly AI. Rewrite completely from scratch. Break every pattern.\n"
+            feedback = f"\nNOTE: Previous attempt scored {prev_p_ai:.2f} — clearly AI-detected. Rewrite from scratch. Break every obvious pattern. Each sentence should feel independently written, with different lengths and structures. Use contractions. Drop transitions. Write like someone thinking out loud, not composing text.\n"
 
     content = prompt_template.format(text=text)
     if feedback:
@@ -276,6 +354,7 @@ def select_best(
     config: Config | None = None,
     detector=None,
     min_sim: float | None = None,
+    style_scorer=None,
 ) -> tuple[str, float]:
     """Select the best candidate by detection score, not just similarity.
 
@@ -286,6 +365,9 @@ def select_best(
         detector: Optional DetectorEnsemble instance. If None, creates one.
         min_sim: Minimum similarity gate for candidate pool. Derived from
             config.similarity_threshold if None (typically threshold - 0.13).
+        style_scorer: Optional StyleScorer instance. If provided, uses its
+            human-likeness score as a tiebreaker when candidates have
+            similar detection scores.
 
     Returns (best_candidate, similarity_score).
     """
@@ -347,9 +429,22 @@ def select_best(
             p_ai = detection.p_ai
         except Exception:
             p_ai = 0.5
-        if p_ai < best_pai:
+
+        # Style scorer tiebreaker: when p_ai is already low, prefer
+        # candidates that match your human writing style more closely.
+        # Gives up to -0.05 bonus, proportional to style score.
+        effective_pai = p_ai
+        if style_scorer is not None and p_ai < 0.5:
+            try:
+                hs = style_scorer.human_score(candidate)
+                if hs is not None:
+                    effective_pai -= 0.05 * hs
+            except Exception:
+                pass
+
+        if effective_pai < best_pai:
             best = candidate
-            best_pai = p_ai
+            best_pai = p_ai  # Store real p_ai (not effective) for display
             best_sim = sim
 
     # Fallback: if detection failed on all, pick highest similarity

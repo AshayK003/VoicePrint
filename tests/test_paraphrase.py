@@ -125,8 +125,8 @@ class TestGenerateCandidate:
 
         call_kwargs = mock_completion.call_args
         prompt_content = call_kwargs.kwargs["messages"][0]["content"]
-        assert "clearly AI" in prompt_content
-        assert "Rewrite completely from scratch" in prompt_content
+        assert "clearly AI-detected" in prompt_content
+        assert "Rewrite from scratch" in prompt_content
 
     @patch("voiceprint.paraphrase.litellm.completion")
     def test_prev_p_ai_none_no_feedback(self, mock_completion):

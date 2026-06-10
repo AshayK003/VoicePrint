@@ -21,6 +21,10 @@ _rng_fragments = random.Random()
 _rng_dysfluency = random.Random()
 _rng_narrative = random.Random()
 _rng_vocab = random.Random()
+_rng_selfdoubt = random.Random()
+_rng_opinion = random.Random()
+_rng_openers = random.Random()
+_rng_topicshift = random.Random()
 
 
 # ---------------------------------------------------------------------------
@@ -77,18 +81,23 @@ RHETORICAL_QUESTIONS: list[str] = [
 
 @rule
 def inject_rhetorical_questions(text: str) -> str:
-    """Insert a rhetorical question after every 4th sentence."""
+    """Occasionally insert a rhetorical question, with variable spacing."""
     _rng_questions.seed(hashlib.md5(text.encode()).hexdigest())
     sents = _split_sentences(text)
-    if len(sents) < 6:
+    if len(sents) < 8:
         return text
 
     result = []
+    # Track how many sentences since last question — avoid any fixed pattern
+    since_last = 99
     for i, sent in enumerate(sents):
         result.append(sent)
-        if (i + 1) % 4 == 0 and i < len(sents) - 1:
-            q = _rng_questions.choice(RHETORICAL_QUESTIONS)
-            result.append(q)
+        since_last += 1
+        if since_last > 3 and _rng_questions.random() < 0.08:
+            if i < len(sents) - 2:
+                q = _rng_questions.choice(RHETORICAL_QUESTIONS)
+                result.append(q)
+                since_last = 0
 
     return " ".join(result)
 
@@ -124,7 +133,7 @@ def inject_fragments(text: str) -> str:
         result.append(sent)
         # Inject fragment before a long sentence
         if i < len(sents) - 1 and len(sents[i + 1].split()) > 20:
-            if _rng_fragments.random() < 0.4:  # 40% chance
+            if _rng_fragments.random() < 0.15:  # 15% chance
                 fragment = _rng_fragments.choice(FRAGMENTS)
                 result.append(fragment)
 
@@ -176,8 +185,8 @@ def inject_dysfluencies(text: str) -> str:
             result.append(sent)
             continue
 
-        # ~15% chance to add a mid-sentence dysfluency at sentence start
-        if _rng_dysfluency.random() < 0.15 and i > 0:
+        # ~5% chance to add a mid-sentence dysfluency at sentence start
+        if _rng_dysfluency.random() < 0.05 and i > 0:
             filler = _rng_dysfluency.choice(DYSFLUENCIES_MID_SENTENCE)
             first_word = sent.split()[0]
             if first_word in ("I", "I'm", "I'll", "I've", "I'd"):
@@ -185,8 +194,8 @@ def inject_dysfluencies(text: str) -> str:
             else:
                 sent = filler[0].upper() + filler[1:] + " " + sent[0].lower() + sent[1:]
 
-        # ~8% chance to insert a self-correction in longer sentences
-        if len(words) > 15 and _rng_dysfluency.random() < 0.08:
+        # ~3% chance to insert a self-correction in longer sentences
+        if len(words) > 15 and _rng_dysfluency.random() < 0.03:
             insert_pos = len(words) // 2
             correction = _rng_dysfluency.choice(DYSFLUENCIES_SELF_CORRECT)
             words.insert(insert_pos, correction)
@@ -206,27 +215,12 @@ def inject_dysfluencies(text: str) -> str:
 VOCAB_SWAPS: list[tuple[str, str]] = [
     (r"\bbig\b", "massive"),
     (r"\bgood\b", "decent"),
-    (r"\bbad\b", "lousy"),
     (r"\bimportant\b", "crucial"),
     (r"\bdifficult\b", "tricky"),
-    (r"\beasy\b", "painless"),
-    (r"\binteresting\b", "fascinating"),
-    (r"\bchange\b", "shift"),
-    (r"\bhelp\b", "lend a hand"),
-    (r"\bstart\b", "kick off"),
     (r"\bend\b", "wrap up"),
-    (r"\bwork\b", "pull off"),
-    (r"\bproblem\b", "headache"),
-    (r"\bsolution\b", "fix"),
     (r"\bclear\b", "obvious"),
-    (r"\bquickly\b", "in a snap"),
     (r"\bvery\b", "pretty"),
-    (r"\breally\b", "honestly"),
-    (r"\bknow\b", "get"),
-    (r"\bunderstand\b", "grasp"),
-    (r"\bthink\b", "figure"),
     (r"\bshow\b", "prove"),
-    (r"\btell\b", "lay out"),
 ]
 
 
@@ -249,8 +243,8 @@ def inject_vocabulary_variety(text: str) -> str:
             result.append(sent)
             continue
 
-        # ~8% chance per applicable sentence to swap one word
-        if _rng_vocab.random() < 0.08:
+        # ~4% chance per applicable sentence to swap one word
+        if _rng_vocab.random() < 0.04:
             candidates = [(pattern, repl) for pattern, repl in VOCAB_SWAPS
                           if re.search(pattern, sent, re.IGNORECASE)]
             if candidates:
@@ -388,8 +382,8 @@ def inject_personal_narrative(text: str) -> str:
             result.append(sent)
             continue
 
-        # ~12% chance to frame a sentence with personal experience
-        if _rng_narrative.random() < 0.12:
+        # ~5% chance to frame a sentence with personal experience
+        if _rng_narrative.random() < 0.05:
             framing = _rng_narrative.choice(PERSONAL_FRAMINGS)
             first_word = sent.split()[0]
             if first_word in ("I", "I'm", "I'll", "I've", "I'd"):
@@ -397,8 +391,8 @@ def inject_personal_narrative(text: str) -> str:
             else:
                 sent = framing + sent[0].lower() + sent[1:]
 
-        # ~10% chance to add a personal aside at end of longer sentences
-        if len(words) > 12 and _rng_narrative.random() < 0.10:
+        # ~4% chance to add a personal aside at end of longer sentences
+        if len(words) > 12 and _rng_narrative.random() < 0.04:
             aside = _rng_narrative.choice(PERSONAL_ASIDES)
             sent = sent.rstrip(".!?") + aside
 
@@ -437,6 +431,188 @@ def normalize_punctuation(text: str) -> str:
     text = re.sub(r"\?{2,}", "?", text)
     text = re.sub(r"!{2,}", "!", text)
     return text.strip()
+
+
+# ---------------------------------------------------------------------------
+# Smoothing — fixes common artifacts from previous rules
+# ---------------------------------------------------------------------------
+
+@rule
+def smooth_text(text: str) -> str:
+    """Fix common artifacts from transformation rules.
+
+    - Standalone "i" becomes "I"
+    - Consecutive duplicate leading conjunctions ("But but", "So so")
+    - Redundant double transitions ("But however" → "But")
+    - Punctuation greed (".?." → "?", "?!?..." → "?")
+    """
+    # Fix lowercase "i" standing alone
+    text = re.sub(r"(?<!\w)i(?!\w)", "I", text)
+
+    # Fix duplicate leading words ("But but" → "But", "So so" → "So")
+    text = re.sub(r"\b(But|So|And|Well|However) \1\b", r"\1", text, flags=re.IGNORECASE)
+
+    # Fix redundant "But however", "So therefore", "And also"
+    text = re.sub(r"\bBut however\b", "But", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bSo therefore\b", "So", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bAnd also\b", "And", text, flags=re.IGNORECASE)
+
+    # Remove period after ? or !  ("Right?." → "Right?")
+    text = re.sub(r"[?!]\.", lambda m: m.group()[0], text)
+
+    return text
+
+
+# ---------------------------------------------------------------------------
+# Self-doubt injection — natural uncertainty signals
+# AI avoids uncertainty; humans express doubt naturally
+# ---------------------------------------------------------------------------
+
+SELF_DOUBT_FRAMINGS = [
+    "I could be wrong, but ",
+    "I'm not entirely sure, but ",
+    "If I remember right, ",
+    "I think ",
+    "Honestly, I'm not 100% sure on this, but ",
+    "From what I recall, ",
+    "I might be mixing this up, but ",
+]
+
+SELF_DOUBT_ASIDES = [
+    " — at least that's how I understand it.",
+    " — but don't quote me on that.",
+    " — I think?",
+    " — or something like that.",
+    " — if I'm not mistaken.",
+]
+
+
+@rule
+def inject_self_doubt(text: str) -> str:
+    _rng_selfdoubt.seed(hashlib.md5(text.encode()).hexdigest())
+    sents = _split_sentences(text)
+    if len(sents) < 6:
+        return text
+
+    result = []
+    for i, sent in enumerate(sents):
+        words = sent.split()
+        if len(words) < 5:
+            result.append(sent)
+            continue
+
+        if _rng_selfdoubt.random() < 0.03:
+            framing = _rng_selfdoubt.choice(SELF_DOUBT_FRAMINGS)
+            first_word = sent.split()[0]
+            if first_word in ("I", "I'm", "I'll", "I've", "I'd"):
+                sent = framing + sent
+            else:
+                sent = framing + sent[0].lower() + sent[1:]
+
+        if len(words) > 15 and _rng_selfdoubt.random() < 0.02:
+            aside = _rng_selfdoubt.choice(SELF_DOUBT_ASIDES)
+            sent = sent.rstrip(".!?") + aside
+
+        result.append(sent)
+
+    return " ".join(result)
+
+
+# ---------------------------------------------------------------------------
+# Opinion injection — take a stance where natural
+# AI tends to stay neutral; humans express judgment
+# ---------------------------------------------------------------------------
+
+OPINION_MARKERS = [
+    "The thing is, ",
+    "Here's what I really think: ",
+    "Honestly? ",
+    "If you ask me, ",
+    "What's interesting is ",
+    "The key thing to understand is ",
+    "What most people miss is ",
+]
+
+OPINION_FRAMINGS = [
+    ", and that's a good thing.",
+    ", which honestly makes all the difference.",
+    " — and that's not a bad thing at all.",
+    ", and frankly that matters a lot.",
+    ", which is exactly what you'd hope for.",
+]
+
+
+@rule
+def inject_opinion_framing(text: str) -> str:
+    _rng_opinion.seed(hashlib.md5(text.encode()).hexdigest())
+    sents = _split_sentences(text)
+    if len(sents) < 5:
+        return text
+
+    result = []
+    for i, sent in enumerate(sents):
+        words = sent.split()
+        if len(words) < 8:
+            result.append(sent)
+            continue
+
+        if _rng_opinion.random() < 0.04:
+            marker = _rng_opinion.choice(OPINION_MARKERS)
+            first_word = sent.split()[0]
+            if first_word in ("I", "I'm", "I'll", "I've", "I'd"):
+                sent = marker + sent
+            else:
+                sent = marker + sent[0].lower() + sent[1:]
+
+        result.append(sent)
+
+    return " ".join(result)
+
+
+# ---------------------------------------------------------------------------
+# Varied sentence openers — break GPTZero's sentence-start pattern detection
+# ---------------------------------------------------------------------------
+
+ALTERNATIVE_OPENERS = [
+    "Actually, ",
+    "Honestly, ",
+    "The truth is, ",
+    "What's funny is, ",
+    "Here's the deal: ",
+    "Look, ",
+    "Sure, ",
+    "Of course, ",
+    "At the end of the day, ",
+    "When you get right down to it, ",
+]
+
+OPENERS_EXCLUDE = {"But", "So", "And", "Or", "Well", "Actually", "Honestly", "Look", "Sure"}
+
+
+@rule
+def vary_sentence_openers(text: str) -> str:
+    _rng_openers.seed(hashlib.md5(text.encode()).hexdigest())
+    sents = _split_sentences(text)
+    if len(sents) < 5:
+        return text
+
+    result = []
+    for i, sent in enumerate(sents):
+        result.append(sent)
+        if i >= len(sents) - 1:
+            break
+        next_sent = sents[i + 1]
+        first_word = next_sent.split()[0] if next_sent.split() else ""
+        stripped = first_word.strip("'\"")
+
+        if stripped in OPENERS_EXCLUDE:
+            continue
+
+        if _rng_openers.random() < 0.03 and len(next_sent.split()) > 6:
+            opener = _rng_openers.choice(ALTERNATIVE_OPENERS)
+            sents[i + 1] = opener + next_sent[0].lower() + next_sent[1:]
+
+    return " ".join(result)
 
 
 # ---------------------------------------------------------------------------

@@ -21,6 +21,7 @@ from .similarity import check_similarity
 from .metrics import burstiness, burstiness_report, readability_scores
 from .patterns import pattern_score, compute_all_signals
 from .memory import PromptMemory
+from .style_scorer import StyleScorer
 
 
 # ---------------------------------------------------------------------------
@@ -53,6 +54,19 @@ class HumanizePipeline:
     def __init__(self, config: Config | None = None):
         self.config = config or load_config()
         self.ensemble = DetectorEnsemble(self.config)
+        self._style_scorer: StyleScorer | None = None
+
+    @property
+    def style_scorer(self) -> StyleScorer | None:
+        """Lazy-loaded style scorer. Returns None if model not found."""
+        if self._style_scorer is None:
+            try:
+                s = StyleScorer()
+                if s.is_loaded():
+                    self._style_scorer = s
+            except Exception:
+                pass
+        return self._style_scorer
 
     def run(
         self,
@@ -135,7 +149,7 @@ class HumanizePipeline:
                     )
                     if candidates:
                         _report(0.65, f"Stage 2: Selecting best candidate{iter_label}...")
-                        current, _sim = select_best(current, candidates, self.config)
+                        current, _sim = select_best(current, candidates, self.config, style_scorer=self.style_scorer)
                         if "paraphrase" not in stages:
                             stages.append("paraphrase")
                         # Post-paraphrase scrub: LLM re-introduces AI patterns
@@ -224,9 +238,22 @@ class HumanizePipeline:
         def _compute_perplexity():
             try:
                 from .perplexity import raw_perplexity
-                return raw_perplexity(best_text)
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ppl:
+                    f = ppl.submit(raw_perplexity, best_text)
+                    return f.result(timeout=40)
+            except concurrent.futures.TimeoutError:
+                return None
             except Exception:
                 return None
+
+        def _safe_result(future, timeout, default):
+            try:
+                return future.result(timeout=timeout)
+            except Exception:
+                return default
+
+        _report(0.93, "Stage 5: Computing metrics...")
 
         with ThreadPoolExecutor() as executor:
             fut_sim = executor.submit(_compute_similarity)
@@ -237,13 +264,14 @@ class HumanizePipeline:
             fut_sig = executor.submit(_compute_signals)
             fut_ppl = executor.submit(_compute_perplexity)
 
-            final_sim = fut_sim.result()
-            final_burstiness = fut_bur.result()
-            final_ps = fut_ps.result()
-            final_readability = fut_read.result()
-            final_bur_det = fut_bur_det.result()
-            final_signals = fut_sig.result()
-            final_ppl = fut_ppl.result()
+            TIMEOUT = 45  # seconds max per metric
+            final_sim = _safe_result(fut_sim, TIMEOUT, 0.0)
+            final_burstiness = _safe_result(fut_bur, TIMEOUT, 0.0)
+            final_ps = _safe_result(fut_ps, TIMEOUT, 0.0)
+            final_readability = _safe_result(fut_read, TIMEOUT, {})
+            final_bur_det = _safe_result(fut_bur_det, TIMEOUT, {})
+            final_signals = _safe_result(fut_sig, TIMEOUT, {})
+            final_ppl = _safe_result(fut_ppl, TIMEOUT, None)
 
         _report(1.0, "Done!")
         return PipelineResult(

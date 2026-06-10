@@ -272,21 +272,14 @@ HEDGES: list[str] = [
     r"\brather\b",
     r"\bfairly\b",
     r"\bsomewhat\b",
-    r"\bperhaps\b",
-    r"\bit seems that\b",
-    r"\bit appears that\b",
+    r"\bquite frankly\b",
     r"\bin a sense\b",
     r"\bto some extent\b",
-    r"\bessentially\b",
-    r"\bbasically\b",
-    r"\btypically\b",
-    r"\barguably\b",
-    r"\bpresumably\b",
+    r"\bit seems that\b",
+    r"\bit appears that\b",
     r"\bbroadly speaking\b",
     r"\bmore often than not\b",
     r"\bfor the most part\b",
-    r"\bin most cases\b",
-    r"\bin many cases\b",
 ]
 
 
@@ -380,7 +373,7 @@ def reduce_modals(text: str) -> str:
     for modal_pattern in MODALS:
         matches = list(re.finditer(modal_pattern, text, re.IGNORECASE))
         for m in reversed(matches):
-            if _reduce_modals_rng.random() < 0.6:
+            if _reduce_modals_rng.random() < 0.15:
                 text = text[:m.start()] + text[m.end():]
     text = re.sub(r"\s{2,}", " ", text)
     return text

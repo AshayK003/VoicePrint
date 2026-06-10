@@ -54,39 +54,45 @@ PROVIDER_PRESETS: dict[str, dict[str, str]] = {
 PROVIDER_MODELS: dict[str, list[str]] = {
     "Google Gemini (Free)": [
         "gemini/gemini-2.0-flash",
-        "gemini/gemini-2.0-flash-lite",
         "gemini/gemini-1.5-flash",
         "gemini/gemini-1.5-pro",
     ],
     "OpenAI": [
         "gpt-4o-mini",
+        "gpt-4.1-mini",
+        "o4-mini",
         "gpt-4o",
         "gpt-5-mini",
         "gpt-5",
     ],
     "Anthropic": [
+        "claude-3-haiku-20240307",
         "claude-3-5-haiku-20241022",
         "claude-3-5-sonnet-20241022",
-        "claude-3-haiku-20240307",
-        "claude-3-opus-20240229",
+        "claude-4-sonnet",
     ],
     "Groq (Free)": [
         "groq/llama-3.3-70b-versatile",
         "groq/llama-4-scout-17b-16e-instruct",
-        "groq/qwen-3-32b",
-        "groq/llama-3.1-8b-instant",
+        "groq/llama-4-maverick-17b-128e-instruct",
+        "groq/qwen-2.5-32b",
         "groq/deepseek-r1-distill-llama-70b",
+        "groq/mixtral-8x7b-32768",
     ],
     "Mistral (Free)": [
-        "mistral/mistral-large-latest",
-        "mistral/mistral-medium-latest",
-        "mistral/mistral-small-latest",
+        "mistral/mistral-tiny",
         "mistral/open-mistral-nemo",
+        "mistral/mistral-small-latest",
+        "mistral/mistral-medium-latest",
+        "mistral/mistral-large-latest",
         "mistral/codestral-latest",
     ],
     "OpenCode Zen": [
         "openai/nemotron-3-ultra-free",
         "openai/mimo-v2.5-free",
+        "openai/llama-3.3-70b-arcee-free",
+        "openai/deepseek-v3-0615-free",
+        "openai/qwen-3-235b-a22b-free",
     ],
     "Custom (OpenAI-compatible)": [
         "",
@@ -196,14 +202,18 @@ def detect_provider_from_key(api_key: str) -> dict[str, str] | None:
 
     if key.startswith("AIza"):
         provider_name = "Google Gemini (Free)"
-    elif key.startswith("sk-") and not key.startswith("sk-ant-"):
-        provider_name = "OpenCode Zen" if len(key) > 60 else "OpenAI"
     elif key.startswith("sk-ant-"):
         provider_name = "Anthropic"
     elif key.startswith("gsk_"):
         provider_name = "Groq (Free)"
     elif key.startswith("ak-"):
         provider_name = "Mistral (Free)"
+    elif key.startswith("opc-") or key.startswith("oc-"):
+        provider_name = "OpenCode Zen"
+    elif key.startswith("sk-"):
+        # OpenAI keys are typically sk-... with ~51 chars
+        # OpenCode Zen uses longer keys when behind opencodedotai prefix
+        provider_name = "OpenCode Zen" if len(key) > 60 else "OpenAI"
     else:
         return None
 

@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import importlib.util
 import re
+
+from ._text import sentences as _split_sentences
 from collections import Counter
 
 import numpy as np
@@ -60,22 +62,22 @@ def signal_ai_vocabulary(text: str) -> float:
 
 def signal_transition_density(text: str) -> float:
     """Fraction of sentences starting with transition words."""
-    sentences = re.split(r"(?<=[.!?])\s+", text.strip())
-    if not sentences or not sentences[0].strip():
+    sents = _split_sentences(text.strip())
+    if not sents or not sents[0].strip():
         return 0.0
     starts_with_transition = sum(
-        1 for s in sentences
+        1 for s in sents
         if s.strip() and s.strip().split()[0].lower().strip(".,;:!?") in TRANSITION_WORDS
     )
-    return starts_with_transition / len(sentences)
+    return starts_with_transition / len(sents)
 
 
 def signal_sentence_start_uniformity(text: str) -> float:
     """How uniform are sentence starters. Higher = more uniform = more AI."""
-    sentences = re.split(r"(?<=[.!?])\s+", text.strip())
-    if len(sentences) < 3:
+    sents = _split_sentences(text.strip())
+    if len(sents) < 3:
         return 0.0
-    starters = [s.strip().split()[0].lower()[:4] for s in sentences if s.strip()]
+    starters = [s.strip().split()[0].lower()[:4] for s in sents if s.strip()]
     counts = Counter(starters)
     most_common_count = counts.most_common(1)[0][1]
     return most_common_count / len(starters)
@@ -118,10 +120,10 @@ def signal_hedging(text: str) -> float:
     ]
     text_lower = text.lower()
     count = sum(1 for h in hedges if h in text_lower)
-    sentences = re.split(r"(?<=[.!?])\s+", text.strip())
-    if not sentences:
+    sents = _split_sentences(text.strip())
+    if not sents:
         return 0.0
-    return count / len(sentences)
+    return count / len(sents)
 
 
 def signal_contraction_deficit(text: str) -> float:
@@ -158,14 +160,14 @@ def signal_passive_voice(text: str) -> float:
         r"\b(is|was|were|are|been|being)\s+\w+ed\b",
         r"\b(is|was|were|are|been|being)\s+\w+en\b",
     ]
-    sentences = re.split(r"(?<=[.!?])\s+", text.strip())
-    if not sentences:
+    sents = _split_sentences(text.strip())
+    if not sents:
         return 0.0
     passive_count = sum(
-        1 for s in sentences
+        1 for s in sents
         if any(re.search(p, s, re.IGNORECASE) for p in passive_patterns)
     )
-    return passive_count / len(sentences)
+    return passive_count / len(sents)
 
 
 def signal_abstract_subjects(text: str) -> float:
@@ -174,14 +176,14 @@ def signal_abstract_subjects(text: str) -> float:
         "it is", "there are", "there is", "this is", "that is",
         "the fact", "the concept", "the idea", "the notion",
     ]
-    sentences = re.split(r"(?<=[.!?])\s+", text.strip())
-    if not sentences:
+    sents = _split_sentences(text.strip())
+    if not sents:
         return 0.0
     count = sum(
-        1 for s in sentences
+        1 for s in sents
         if any(s.lower().startswith(a) for a in abstract_starts)
     )
-    return count / len(sentences)
+    return count / len(sents)
 
 
 def signal_modality_overload(text: str) -> float:

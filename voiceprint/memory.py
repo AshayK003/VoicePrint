@@ -40,14 +40,20 @@ class PromptMemory:
             return sum(scores) / len(scores) if scores else None
 
     def best_level(self, default: int = 0) -> int:
-        """Prompt level with the lowest average p_ai. Falls back to default."""
+        """Prompt level with the lowest average p_ai. Falls back to default.
+
+        Ties are broken by sample count — prefer the level with more data.
+        """
         with self._lock:
             best = default
             best_avg = float("inf")
+            best_count = 0
             for level, scores in self._history.items():
                 avg = sum(scores) / len(scores)
-                if avg < best_avg:
+                count = len(scores)
+                if avg < best_avg or (avg == best_avg and count > best_count):
                     best_avg = avg
+                    best_count = count
                     best = level
             return best
 

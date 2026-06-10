@@ -5,13 +5,15 @@ from __future__ import annotations
 import re
 
 import numpy as np
+
+from ._text import sentences as _split_sentences
 import textstat
 
 
 def sentence_lengths(text: str) -> list[int]:
     """Split text into sentences and return word counts."""
-    sentences = re.split(r"(?<=[.!?])\s+", text.strip())
-    return [len(s.split()) for s in sentences if s.strip()]
+    sents = _split_sentences(text.strip())
+    return [len(s.split()) for s in sents if s.strip()]
 
 
 def burstiness(text: str) -> float:

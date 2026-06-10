@@ -14,7 +14,7 @@ from dataclasses import dataclass
 
 from .config import Config, load_config
 from .scrub import scrub
-from .paraphrase import generate_candidates, select_best
+from .paraphrase import generate_candidates, select_best, NINJA_PROMPTS
 from .detect import DetectorEnsemble, EnsembleResult
 from .polish import polish
 from .similarity import check_similarity
@@ -116,8 +116,8 @@ class HumanizePipeline:
             current = best_text if iteration > 0 and best_text != scrubbed else scrubbed
             iter_label = f" (attempt {iteration + 1}/{max_iter})" if max_iter > 1 else ""
 
-            # Adaptive prompt level: use memory to bias which level works best
-            prompt_level = iteration
+            # Adaptive prompt level: cycle through levels, clamped to valid range
+            prompt_level = min(iteration, len(NINJA_PROMPTS) - 1)
             if memory and memory.total_runs() > 0:
                 learned = memory.best_level(default=prompt_level)
                 if learned != prompt_level:
@@ -228,7 +228,7 @@ class HumanizePipeline:
             except Exception:
                 return None
 
-        with ThreadPoolExecutor(max_workers=3) as executor:
+        with ThreadPoolExecutor() as executor:
             fut_sim = executor.submit(_compute_similarity)
             fut_bur = executor.submit(_compute_burstiness)
             fut_ps = executor.submit(_compute_pattern_score)

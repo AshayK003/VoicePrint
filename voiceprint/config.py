@@ -171,15 +171,12 @@ def load_config() -> Config:
     if key := os.getenv("VOICEPRINT_SIMILARITY_THRESHOLD"):
         config.similarity_threshold = float(key)
 
-    # Fallback: if env key missing for default provider, try registry
-    if not os.getenv("OPENCODE_API_KEY"):
-        reg_key = _read_registry_env("OPENCODE_API_KEY")
-        if reg_key:
-            os.environ["OPENCODE_API_KEY"] = reg_key
-
-    # Populate api_key from env after registry fallback
-    if not config.api_key and os.getenv("OPENCODE_API_KEY"):
-        config.api_key = os.getenv("OPENCODE_API_KEY")
+    # API key resolution: env var first, then Windows registry fallback.
+    # Does NOT mutate os.environ — avoids side effects for other callers.
+    if not config.api_key:
+        config.api_key = os.getenv("OPENCODE_API_KEY", "")
+    if not config.api_key:
+        config.api_key = _read_registry_env("OPENCODE_API_KEY")
 
     return config
 
@@ -191,50 +188,33 @@ def load_config() -> Config:
 def detect_provider_from_key(api_key: str) -> dict[str, str] | None:
     """Detect provider, model, and base URL from API key prefix.
 
+    Uses PROVIDER_PRESETS for model/base URL — single source of truth.
     Returns dict with provider, model, base_url keys — or None if unknown.
     Pure function, no side effects.
     """
     key = api_key.strip()
 
     if key.startswith("AIza"):
-        return {
-            "provider": "Google Gemini (Free)",
-            "model": "gemini/gemini-2.0-flash",
-            "base_url": "",
-        }
-    if key.startswith("sk-") and not key.startswith("sk-ant-"):
-        # OpenCode Zen keys are longer (79 chars) than typical OpenAI keys (< 60)
-        if len(key) > 60:
-            return {
-                "provider": "OpenCode Zen",
-                "model": "openai/nemotron-3-ultra-free",
-                "base_url": "https://opencode.ai/zen/v1",
-            }
-        return {
-            "provider": "OpenAI",
-            "model": "gpt-4o-mini",
-            "base_url": "https://api.openai.com/v1",
-        }
-    if key.startswith("sk-ant-"):
-        return {
-            "provider": "Anthropic",
-            "model": "claude-3-5-haiku-20241022",
-            "base_url": "",
-        }
-    if key.startswith("gsk_"):
-        return {
-            "provider": "Groq (Free)",
-            "model": "groq/llama-3.3-70b-versatile",
-            "base_url": "",
-        }
-    if key.startswith("ak-"):
-        return {
-            "provider": "Mistral (Free)",
-            "model": "mistral/mistral-large-latest",
-            "base_url": "",
-        }
+        provider_name = "Google Gemini (Free)"
+    elif key.startswith("sk-") and not key.startswith("sk-ant-"):
+        provider_name = "OpenCode Zen" if len(key) > 60 else "OpenAI"
+    elif key.startswith("sk-ant-"):
+        provider_name = "Anthropic"
+    elif key.startswith("gsk_"):
+        provider_name = "Groq (Free)"
+    elif key.startswith("ak-"):
+        provider_name = "Mistral (Free)"
+    else:
+        return None
 
-    return None
+    preset = PROVIDER_PRESETS.get(provider_name)
+    if not preset:
+        return None
+    return {
+        "provider": provider_name,
+        "model": preset["model"],
+        "base_url": preset["base_url"],
+    }
 
 
 # ---------------------------------------------------------------------------

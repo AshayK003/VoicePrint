@@ -15,9 +15,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Any
 
-import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoModelForCausalLM
-
 from .config import Config, load_config
 from .metrics import burstiness
 from .patterns import pattern_score
@@ -92,10 +89,10 @@ def _statistical_score(text: str) -> float:
     return 0.4 * b_score + 0.6 * p
 
 
-def statistical_detect(text: str) -> EnsembleResult:
+def statistical_detect(text: str, threshold: float = 0.5) -> EnsembleResult:
     """Instant detection using statistics only. No models loaded."""
     score = _statistical_score(text)
-    passed = score < 0.5
+    passed = score < threshold
     label = "FAKE" if score > 0.5 else "REAL"
 
     return EnsembleResult(
@@ -115,7 +112,11 @@ class RoBERTaDetector:
 
     def __init__(self, model_name: str, device: str | None = None):
         self.model_name = model_name
-        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        if device:
+            self.device = device
+        else:
+            import torch
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self._loaded = False
 
     def _load(self):
@@ -125,6 +126,8 @@ class RoBERTaDetector:
             self.tokenizer = _tokenizer_cache[self.model_name]
             self.model = _classifier_cache[self.model_name]
         else:
+            from transformers import AutoTokenizer, AutoModelForSequenceClassification
+            import torch  # noqa: F401 — ensures torch is importable before model loads
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
             self.model = AutoModelForSequenceClassification.from_pretrained(
                 self.model_name
@@ -137,6 +140,8 @@ class RoBERTaDetector:
     def detect(self, text: str) -> DetectionResult:
         """Run detection on a single text."""
         self._load()
+        import torch
+        import torch.nn.functional as F
 
         inputs = self.tokenizer(
             text,
@@ -148,7 +153,7 @@ class RoBERTaDetector:
 
         with torch.no_grad():
             outputs = self.model(**inputs)
-            probs = torch.nn.functional.softmax(outputs.logits, dim=-1)
+            probs = F.softmax(outputs.logits, dim=-1)
 
         p_ai = probs[0][1].item()
         label = "FAKE" if p_ai > 0.5 else "REAL"
@@ -173,14 +178,26 @@ class BinocularsDetector:
     """
 
     def __init__(self, device: str | None = None):
-        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        if device:
+            self.device = device
+        else:
+            import torch
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self._loaded = False
 
     def _load(self):
         if self._loaded:
             return
+        import torch  # noqa: F401
         for name in (_BINOCULARS_MODEL_A, _BINOCULARS_MODEL_B):
             if name not in _binoculars_cache:
+                if name == _BINOCULARS_MODEL_A:
+                    from .perplexity import _get_gpt2
+                    model, tok = _get_gpt2()
+                    if model is not None:
+                        _binoculars_cache[name] = (tok, model)
+                        continue
+                from transformers import AutoTokenizer, AutoModelForCausalLM
                 tok = AutoTokenizer.from_pretrained(name)
                 mod = AutoModelForCausalLM.from_pretrained(name).to(self.device)
                 mod.eval()
@@ -188,6 +205,7 @@ class BinocularsDetector:
         self._loaded = True
 
     def _perplexity(self, text: str, model_name: str) -> float:
+        import torch
         tok, mod = _binoculars_cache[model_name]
         inputs = tok(text, return_tensors="pt", truncation=True, max_length=512).to(self.device)
         with torch.no_grad():
@@ -265,7 +283,7 @@ class DetectorEnsemble:
     def detect(self, text: str) -> EnsembleResult:
         """Detection: statistics first, models only if ambiguous and enabled."""
         # Tier 1: Instant statistical check
-        stat = statistical_detect(text)
+        stat = statistical_detect(text, self.config.detection_threshold)
 
         # If models disabled or score is clear, return statistical result
         if not self.config.use_models or stat.p_ai < _STAT_LOW or stat.p_ai > _STAT_HIGH:

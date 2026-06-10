@@ -37,7 +37,10 @@ Stage 2 is the only API-dependent step. Stages 1, 3, and 4 run locally with no n
 - **Post-paraphrase scrub** — LLM tends to re-introduce AI patterns (formal transitions, hedging). Scrub runs again after paraphrasing.
 - **Iterative retry loop** — if detection doesn't pass (p_ai < 0.5), pipeline retries up to N times, tracking the best result (tiebreak on higher perplexity).
 - **Similarity gate at 0.68** — prevents the LLM from drifting too far from original meaning. Below 0.68, text starts losing critical facts.
-- **Registry fallback (Windows)** — API key persisted to `HKCU\Environment\OPENCODE_API_KEY`. Resolution: explicit > env var > registry.
+- **Registry fallback (Windows)** — API key persisted to `HKCU\Environment\OPENCODE_API_KEY`. Resolution: explicit > env var > registry. `load_config()` does NOT mutate `os.environ` — avoids side effects.
+- **Dedicated per-function RNGs (polish.py)** — each rule seeds a private `random.Random()` from `hashlib.md5(text.encode())`. Same text always produces same output. No global seed contamination across tests.
+- **Shared `sentences()` utility** — 12 regex copies unified into `voiceprint/_text.py`. Single source of truth for sentence boundary splitting.
+- **Lazy torch/transformers imports in detect.py** — no import-time crash on Windows when torch DLL is unloadable.
 
 ## Setup
 
@@ -128,8 +131,9 @@ VoicePrint/
 │   ├── patterns.py         # AI-pattern fingerprint signals (15+ signals, optional pystylometry)
 │   ├── perplexity.py       # GPT-2 based perplexity scoring (lazy-loaded, 0-1 normalized)
 │   ├── memory.py           # PromptMemory — adaptive prompt_level feedback loop
-│   └── similarity.py       # Semantic similarity (MiniLM / Jaccard fallback)
-├── tests/                  # 287 tests, all mocked (no API calls, no model downloads)
+│   ├── similarity.py       # Semantic similarity (MiniLM / Jaccard fallback)
+│   └── _text.py            # Shared text utilities (sentences() splitter)
+├── tests/                  # 292 tests, all mocked (no API calls, no model downloads)
 ├── tools/
 │   └── analyze_banned_words.py  # Dataset-based banned word analysis (gsingh1-py/train)
 ├── .env.example            # Environment variable template
@@ -141,7 +145,7 @@ Layering is strict: `app.py` → `service.py` → `pipeline.py` → individual m
 ## Testing
 
 ```bash
-# Run all tests (287 total, ~15s)
+# Run all tests (292 total, ~15s)
 pytest tests/ -v
 
 # Run a specific module
@@ -156,7 +160,7 @@ pytest tests/ --cov=voiceprint
 - No API calls — all LLM and detection calls are mocked via `unittest.mock`
 - No model downloads — `torch`, `transformers`, `sentence_transformers`, and `sklearn` are stubbed in `tests/conftest.py`
 - Tests cover: each scrub rule, pattern signal, paraphrase candidate flow, perplexity scoring, PromptMemory, pipeline retry logic, service validation, rate limiting, URL validation, XSS safety, and config edge cases
-- Perplexity tests skip model-dependent assertions when GPT-2 is unavailable; mock guard rejects MagicMock stubs
+- Perplexity tests skip model-dependent assertions when GPT-2 is unavailable; mock guard rejects stubs via `type(_MODEL).__module__`
 
 ### Adding tests
 

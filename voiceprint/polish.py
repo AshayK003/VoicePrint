@@ -4,9 +4,23 @@ Converts passive → active, injects rhetorical questions and sentence
 fragments, normalizes burstiness. Pure Python, no model needed.
 """
 
+import hashlib
 import random
 import re
 from typing import Callable
+
+from ._text import sentences as _split_sentences
+
+
+# ---------------------------------------------------------------------------
+# Dedicated per-function RNGs (deterministic per input text)
+# ---------------------------------------------------------------------------
+
+_rng_questions = random.Random()
+_rng_fragments = random.Random()
+_rng_dysfluency = random.Random()
+_rng_narrative = random.Random()
+_rng_vocab = random.Random()
 
 
 # ---------------------------------------------------------------------------
@@ -64,15 +78,16 @@ RHETORICAL_QUESTIONS: list[str] = [
 @rule
 def inject_rhetorical_questions(text: str) -> str:
     """Insert a rhetorical question after every 4th sentence."""
-    sentences = re.split(r"(?<=[.!?])\s+", text)
-    if len(sentences) < 6:
+    _rng_questions.seed(hashlib.md5(text.encode()).hexdigest())
+    sents = _split_sentences(text)
+    if len(sents) < 6:
         return text
 
     result = []
-    for i, sent in enumerate(sentences):
+    for i, sent in enumerate(sents):
         result.append(sent)
-        if (i + 1) % 4 == 0 and i < len(sentences) - 1:
-            q = random.choice(RHETORICAL_QUESTIONS)
+        if (i + 1) % 4 == 0 and i < len(sents) - 1:
+            q = _rng_questions.choice(RHETORICAL_QUESTIONS)
             result.append(q)
 
     return " ".join(result)
@@ -99,17 +114,18 @@ FRAGMENTS: list[str] = [
 @rule
 def inject_fragments(text: str) -> str:
     """Add short sentence fragments for natural rhythm."""
-    sentences = re.split(r"(?<=[.!?])\s+", text)
-    if len(sentences) < 8:
+    _rng_fragments.seed(hashlib.md5(text.encode()).hexdigest())
+    sents = _split_sentences(text)
+    if len(sents) < 8:
         return text
 
     result = []
-    for i, sent in enumerate(sentences):
+    for i, sent in enumerate(sents):
         result.append(sent)
         # Inject fragment before a long sentence
-        if i < len(sentences) - 1 and len(sentences[i + 1].split()) > 20:
-            if random.random() < 0.4:  # 40% chance
-                fragment = random.choice(FRAGMENTS)
+        if i < len(sents) - 1 and len(sents[i + 1].split()) > 20:
+            if _rng_fragments.random() < 0.4:  # 40% chance
+                fragment = _rng_fragments.choice(FRAGMENTS)
                 result.append(fragment)
 
     return " ".join(result)
@@ -147,12 +163,13 @@ def inject_dysfluencies(text: str) -> str:
     Adds mid-sentence fillers (well, I mean, you know) at sentence-initial
     positions and occasional self-corrections in longer sentences.
     """
-    sentences = re.split(r"(?<=[.!?])\s+", text)
-    if len(sentences) < 4:
+    _rng_dysfluency.seed(hashlib.md5(text.encode()).hexdigest())
+    sents = _split_sentences(text)
+    if len(sents) < 4:
         return text
 
     result = []
-    for i, sent in enumerate(sentences):
+    for i, sent in enumerate(sents):
         words = sent.split()
         # Skip very short sentences
         if len(words) < 5:
@@ -160,14 +177,18 @@ def inject_dysfluencies(text: str) -> str:
             continue
 
         # ~15% chance to add a mid-sentence dysfluency at sentence start
-        if random.random() < 0.15 and i > 0:
-            filler = random.choice(DYSFLUENCIES_MID_SENTENCE)
-            sent = filler[0].upper() + filler[1:] + " " + sent[0].lower() + sent[1:]
+        if _rng_dysfluency.random() < 0.15 and i > 0:
+            filler = _rng_dysfluency.choice(DYSFLUENCIES_MID_SENTENCE)
+            first_word = sent.split()[0]
+            if first_word in ("I", "I'm", "I'll", "I've", "I'd"):
+                sent = filler[0].upper() + filler[1:] + " " + sent
+            else:
+                sent = filler[0].upper() + filler[1:] + " " + sent[0].lower() + sent[1:]
 
         # ~8% chance to insert a self-correction in longer sentences
-        if len(words) > 15 and random.random() < 0.08:
+        if len(words) > 15 and _rng_dysfluency.random() < 0.08:
             insert_pos = len(words) // 2
-            correction = random.choice(DYSFLUENCIES_SELF_CORRECT)
+            correction = _rng_dysfluency.choice(DYSFLUENCIES_SELF_CORRECT)
             words.insert(insert_pos, correction)
             sent = " ".join(words)
 
@@ -216,24 +237,25 @@ def inject_vocabulary_variety(text: str) -> str:
     Creates sporadic perplexity spikes — the kind of unexpected word
     choices that naturally occur in human writing but AI avoids.
     """
-    sentences = re.split(r"(?<=[.!?])\s+", text)
-    if len(sentences) < 3:
+    _rng_vocab.seed(hashlib.md5(text.encode()).hexdigest())
+    sents = _split_sentences(text)
+    if len(sents) < 3:
         return text
 
     result = []
-    for i, sent in enumerate(sentences):
+    for i, sent in enumerate(sents):
         words = sent.split()
         if len(words) < 6:
             result.append(sent)
             continue
 
         # ~8% chance per applicable sentence to swap one word
-        if random.random() < 0.08:
+        if _rng_vocab.random() < 0.08:
             candidates = [(pattern, repl) for pattern, repl in VOCAB_SWAPS
                           if re.search(pattern, sent, re.IGNORECASE)]
             if candidates:
-                pattern, repl = random.choice(candidates)
-                if random.random() < 0.5:  # 50% swap rate when triggered
+                pattern, repl = _rng_vocab.choice(candidates)
+                if _rng_vocab.random() < 0.5:  # 50% swap rate when triggered
                     sent = re.sub(pattern, repl, sent, count=1, flags=re.IGNORECASE)
 
         result.append(sent)
@@ -354,25 +376,30 @@ def inject_personal_narrative(text: str) -> str:
     Wraps opening with personal experience framing and adds
     opinion asides to create a more authentic human voice.
     """
-    sentences = re.split(r"(?<=[.!?])\s+", text)
-    if len(sentences) < 3:
+    _rng_narrative.seed(hashlib.md5(text.encode()).hexdigest())
+    sents = _split_sentences(text)
+    if len(sents) < 3:
         return text
 
     result = []
-    for i, sent in enumerate(sentences):
+    for i, sent in enumerate(sents):
         words = sent.split()
         if len(words) < 6:
             result.append(sent)
             continue
 
         # ~12% chance to frame a sentence with personal experience
-        if random.random() < 0.12:
-            framing = random.choice(PERSONAL_FRAMINGS)
-            sent = framing + sent[0].lower() + sent[1:]
+        if _rng_narrative.random() < 0.12:
+            framing = _rng_narrative.choice(PERSONAL_FRAMINGS)
+            first_word = sent.split()[0]
+            if first_word in ("I", "I'm", "I'll", "I've", "I'd"):
+                sent = framing + sent
+            else:
+                sent = framing + sent[0].lower() + sent[1:]
 
         # ~10% chance to add a personal aside at end of longer sentences
-        if len(words) > 12 and random.random() < 0.10:
-            aside = random.choice(PERSONAL_ASIDES)
+        if len(words) > 12 and _rng_narrative.random() < 0.10:
+            aside = _rng_narrative.choice(PERSONAL_ASIDES)
             sent = sent.rstrip(".!?") + aside
 
         result.append(sent)
@@ -387,10 +414,10 @@ def inject_personal_narrative(text: str) -> str:
 @rule
 def remove_duplicates(text: str) -> str:
     """Remove exact duplicate sentences."""
-    sentences = re.split(r"(?<=[.!?])\s+", text)
+    sents = _split_sentences(text)
     seen = set()
     result = []
-    for sent in sentences:
+    for sent in sents:
         normalized = sent.strip().lower()
         if normalized not in seen:
             seen.add(normalized)

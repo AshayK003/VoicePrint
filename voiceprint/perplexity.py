@@ -9,7 +9,6 @@ from __future__ import annotations
 import logging
 import math
 import os
-from unittest.mock import Mock
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,7 @@ def _load_model() -> bool:
         from transformers import AutoModelForCausalLM, AutoTokenizer
         _MODEL = AutoModelForCausalLM.from_pretrained("gpt2")
         # Reject mock/stub models (conftest stubs transformers for fast tests)
-        if isinstance(_MODEL, Mock):
+        if type(_MODEL).__module__.startswith("unittest.mock"):
             logger.warning("Perplexity model is a mock — skipping")
             _MODEL = None
             _TOKENIZER = None
@@ -75,6 +74,16 @@ def perplexity_score(text: str) -> float | None:
     except Exception as e:
         logger.warning(f"Perplexity scoring failed: {e}")
         return None
+
+
+def _get_gpt2():
+    """Return globally cached GPT-2 model and tokenizer, or (None, None).
+
+    Used by BinocularsDetector to avoid loading GPT-2 twice.
+    """
+    if _load_model():
+        return _MODEL, _TOKENIZER
+    return None, None
 
 
 def raw_perplexity(text: str) -> float | None:

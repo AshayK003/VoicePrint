@@ -43,10 +43,7 @@ _API_KEY_PATTERNS = [
     r"(?i)(Authorization:\s*Bearer\s+\S+)",
 ]
 
-# Deliberately lower than config.similarity_threshold (0.68). This gates
-# candidate pool size, not final quality — higher values reject too many
-# valid candidates before detection can evaluate them.
-_MIN_CANDIDATE_SIM = 0.55
+
 
 # Wide temperature range for maximum candidate diversity
 _CANDIDATE_TEMPERATURES = [0.5, 0.8, 1.0, 1.2, 1.4, 1.1, 0.9, 1.3]
@@ -223,8 +220,10 @@ def generate_candidate(
     ]
 
     response = litellm.completion(**kwargs)
-
-    return response.choices[0].message.content.strip()
+    content = response.choices[0].message.content
+    if not content or not content.strip():
+        raise ValueError("LLM returned empty response")
+    return content.strip()
 
 
 def generate_candidates(
@@ -276,6 +275,7 @@ def select_best(
     candidates: list[str],
     config: Config | None = None,
     detector=None,
+    min_sim: float | None = None,
 ) -> tuple[str, float]:
     """Select the best candidate by detection score, not just similarity.
 
@@ -284,6 +284,8 @@ def select_best(
 
     Args:
         detector: Optional DetectorEnsemble instance. If None, creates one.
+        min_sim: Minimum similarity gate for candidate pool. Derived from
+            config.similarity_threshold if None (typically threshold - 0.13).
 
     Returns (best_candidate, similarity_score).
     """
@@ -292,13 +294,16 @@ def select_best(
     if not candidates:
         return original, 1.0
 
+    if min_sim is None:
+        min_sim = max(0.5, config.similarity_threshold - 0.13)
+
     # Step 1: Compute all similarity scores (cheap — no models)
     sim_map = {}
     for c in candidates:
         sim_map[c] = check_similarity(original, c, config=config)
 
     # Step 2: Filter by minimum similarity, sort by sim descending
-    scored = [(c, sim_map[c]) for c in candidates if sim_map[c] >= _MIN_CANDIDATE_SIM]
+    scored = [(c, sim_map[c]) for c in candidates if sim_map[c] >= min_sim]
     if not scored:
         scored = [(c, sim_map[c]) for c in candidates]
     scored.sort(key=lambda x: x[1], reverse=True)
@@ -319,6 +324,9 @@ def select_best(
         pass
     if not scored:
         scored = [(c, sim_map[c]) for c in candidates] if candidates else []
+
+    if not scored:
+        return original, 1.0
 
     # Step 3: Run detection ONLY on top candidates (expensive — model inference)
     top_n = min(len(scored), 3)
@@ -346,8 +354,11 @@ def select_best(
 
     # Fallback: if detection failed on all, pick highest similarity
     if best is None:
-        best = scored[0][0]
-        best_sim = scored[0][1]
+        if scored:
+            best = scored[0][0]
+            best_sim = scored[0][1]
+        else:
+            best, best_sim = candidates[0], sim_map.get(candidates[0], 1.0)
 
     return best, best_sim
 

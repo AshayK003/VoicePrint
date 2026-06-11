@@ -116,8 +116,8 @@ def build_config(
         if not config.api_key:
             config.api_key = _read_registry_env("OPENCODE_API_KEY")
         # Resolve base_url from preset when not explicitly provided
-        if not base_url and preset and preset.get("base_url"):
-            config.base_url = preset["base_url"]
+        if not base_url and preset:
+            config.base_url = preset.get("base_url", "")
 
     return config
 

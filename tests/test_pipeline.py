@@ -51,7 +51,7 @@ class TestHumanizePipeline:
             "Furthermore, the results are very important.",
             use_polish=False,
         )
-        assert mock_gen.call_count == 3
+        assert mock_gen.call_count == 4
 
     @patch("voiceprint.pipeline.generate_candidates", side_effect=Exception("API error"))
     def test_paraphrase_failure_continues(self, mock_gen):
@@ -206,6 +206,7 @@ class TestHumanizePipeline:
         result = pipeline.run(
             "The quick brown fox jumps over the lazy dog.",
             use_paraphrase=False,
+            use_restructure=False,
             use_polish=False,
         )
         assert result.humanized is not None

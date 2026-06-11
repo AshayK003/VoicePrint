@@ -74,8 +74,8 @@ class TestConfig:
         assert config.provider == "OpenCode Zen"
         assert config.llm_model == "openai/nemotron-3-ultra-free"
         assert config.base_url == "https://opencode.ai/zen/v1"
-        assert config.n_candidates == 1
-        assert config.similarity_threshold == 0.68
+        assert config.n_candidates == 2
+        assert config.similarity_threshold == 0.65
         assert config.detection_threshold == 0.5
 
     def test_custom_values(self):

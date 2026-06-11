@@ -142,9 +142,14 @@ class Config:
     llm_max_tokens: int = 2048
 
     # Paraphrasing
-    n_candidates: int = 1  # Best-of-N (increase for better evasion at cost of speed)
-    similarity_threshold: float = 0.68  # Min cosine similarity to original (lower = more transformation allowed)
-    max_iterations: int = 3  # Max paraphrase→polish→detect retry cycles
+    n_candidates: int = 2  # Best-of-N (increase for better evasion at cost of speed)
+    similarity_threshold: float = 0.65  # Min cosine similarity to original (lower = more transformation allowed)
+    max_iterations: int = 4  # Max paraphrase→polish→detect retry cycles
+
+    # Detection
+    # Clause restructuring
+    use_restructure: bool = True  # Enable/disable syntactic clause restructuring
+    restructure_probability: float = 0.6  # Per-rule application probability per eligible sentence
 
     # Detection
     primary_detector: str = "openai-community/roberta-large-openai-detector"

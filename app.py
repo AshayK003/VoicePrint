@@ -36,43 +36,341 @@ st.set_page_config(
 def _load_css() -> str:
     return """
 <style>
+/* ── Dark Theme ───────────────────────────────────────────── */
+
 :root {
-    --vp-spacing-xs: 4px; --vp-spacing-sm: 8px; --vp-spacing-md: 16px;
-    --vp-spacing-lg: 24px; --vp-spacing-xl: 32px;
-    --vp-radius: 8px; --vp-radius-sm: 4px;
-    --vp-color-text: #1a1a2e; --vp-color-text-muted: #6b7280;
-    --vp-color-surface: #f8f9fa; --vp-color-border: #e5e7eb;
-    --vp-color-success: #059669; --vp-color-warning: #d97706;
-    --vp-color-error: #dc2626; --vp-color-info: #2563eb;
+    --vp-bg: #0e1117;
+    --vp-bg-card: #1a1d2e;
+    --vp-bg-surface: #262a3d;
+    --vp-bg-hover: #2e3347;
+    --vp-text: #e8eaed;
+    --vp-text-muted: #9aa0a6;
+    --vp-text-dim: #6b7280;
+    --vp-border: #3c4043;
+    --vp-border-light: #2d3143;
+    --vp-primary: #8ab4f8;
+    --vp-success: #81c995;
+    --vp-warning: #fdd663;
+    --vp-error: #f28b82;
+    --vp-badge-success-bg: #1e3529;
+    --vp-badge-success-fg: #81c995;
+    --vp-badge-warning-bg: #332e1a;
+    --vp-badge-warning-fg: #fdd663;
+    --vp-badge-error-bg: #3c1f1f;
+    --vp-badge-error-fg: #f28b82;
+    --vp-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --vp-font-mono: "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas, monospace;
 }
-:focus-visible { outline: 2px solid var(--vp-color-info); outline-offset: 2px; }
-.vp-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; line-height: 1; }
-.vp-badge-success { background: #d1fae5; color: #065f46; }
-.vp-badge-warning { background: #fef3c7; color: #92400e; }
-.vp-badge-error { background: #fee2e2; color: #991b1b; }
-.vp-empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 32px; text-align: center; border: 2px dashed var(--vp-color-border); border-radius: var(--vp-radius); color: var(--vp-color-text-muted); min-height: 300px; }
-.vp-empty-state h3 { margin: 0 0 8px 0; color: var(--vp-color-text); font-size: 18px; }
-.vp-empty-state p { margin: 0 0 4px 0; font-size: 14px; max-width: 360px; }
-.vp-stage-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.vp-stage { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 16px; font-size: 12px; font-weight: 500; background: var(--vp-color-surface); border: 1px solid var(--vp-color-border); color: var(--vp-color-text); }
-.vp-metric-context { font-size: 11px; color: var(--vp-color-text-muted); margin-top: 2px; }
-.vp-copy-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border: 1px solid var(--vp-color-border); border-radius: var(--vp-radius-sm); background: white; color: var(--vp-color-text); font-size: 13px; font-weight: 500; cursor: pointer; transition: background 150ms, border-color 150ms; float: right; }
-.vp-copy-btn:hover { background: var(--vp-color-surface); border-color: #d1d5db; }
-.vp-copy-btn:focus-visible { outline: 2px solid var(--vp-color-info); outline-offset: 2px; }
-.vp-copy-btn:active { background: #e5e7eb; }
-.vp-diff-container { display: flex; gap: 16px; max-height: 400px; }
-.vp-diff-pane { flex: 1; overflow: auto; padding: 12px; border: 1px solid var(--vp-color-border); border-radius: var(--vp-radius); font-size: 14px; line-height: 1.7; }
+
+html, body, .stApp {
+    background: var(--vp-bg) !important;
+    color: var(--vp-text) !important;
+}
+
+.stApp > header { background: var(--vp-bg) !important; }
+.stApp [data-testid="stToolbar"] { border-color: var(--vp-border) !important; }
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background: var(--vp-bg-card) !important;
+    border-right: 1px solid var(--vp-border) !important;
+}
+section[data-testid="stSidebar"] .st-emotion-cache-6qob1r { background: var(--vp-bg-card) !important; }
+section[data-testid="stSidebar"] hr { border-color: var(--vp-border) !important; }
+
+/* Inputs — text, textarea, select, slider */
+.stTextInput input, .stTextArea textarea {
+    background: var(--vp-bg-surface) !important;
+    color: var(--vp-text) !important;
+    border-color: var(--vp-border) !important;
+    caret-color: var(--vp-primary) !important;
+}
+.stTextInput input:focus, .stTextArea textarea:focus {
+    border-color: var(--vp-primary) !important;
+    box-shadow: 0 0 0 1px var(--vp-primary) !important;
+}
+.stTextInput input::placeholder, .stTextArea textarea::placeholder { color: var(--vp-text-dim) !important; }
+
+div[data-baseweb="select"] > div {
+    background: var(--vp-bg-surface) !important;
+    border-color: var(--vp-border) !important;
+}
+div[data-baseweb="select"] span, div[data-baseweb="select"] svg { color: var(--vp-text) !important; }
+
+/* Dropdown menu */
+div[data-baseweb="popover"] ul, div[data-baseweb="menu"] {
+    background: var(--vp-bg-surface) !important;
+    border-color: var(--vp-border) !important;
+}
+div[data-baseweb="menu"] li {
+    color: var(--vp-text) !important;
+}
+div[data-baseweb="menu"] li:hover {
+    background: var(--vp-bg-hover) !important;
+}
+
+/* Slider */
+.stSlider div[data-baseweb="slider"] div {
+    background: var(--vp-primary) !important;
+}
+.stSlider div[data-baseweb="slider"] div[role="slider"] {
+    background: var(--vp-primary) !important;
+    border-color: var(--vp-primary) !important;
+}
+
+/* Checkbox */
+.stCheckbox label { color: var(--vp-text) !important; }
+.stCheckbox div[data-testid="stMarkdown"] { color: var(--vp-text) !important; }
+
+/* Buttons */
+.stButton button[kind="primary"] {
+    background: var(--vp-primary) !important;
+    color: #0e1117 !important;
+    border: none !important;
+    font-weight: 600 !important;
+}
+.stButton button[kind="secondary"] {
+    background: var(--vp-bg-surface) !important;
+    color: var(--vp-text) !important;
+    border: 1px solid var(--vp-border) !important;
+}
+.stButton button[kind="secondary"]:hover {
+    background: var(--vp-bg-hover) !important;
+    border-color: var(--vp-text-muted) !important;
+}
+
+/* Markdown text */
+[data-testid="stMarkdown"] {
+    color: var(--vp-text) !important;
+}
+[data-testid="stMarkdown"] p, [data-testid="stMarkdown"] span, [data-testid="stMarkdown"] div {
+    color: var(--vp-text) !important;
+}
+
+/* Caption */
+.stCaption, [data-testid="stCaptionContainer"] p {
+    color: var(--vp-text-muted) !important;
+}
+
+/* Metric */
+div[data-testid="metric-container"] {
+    background: var(--vp-bg-card) !important;
+    border: 1px solid var(--vp-border-light) !important;
+    border-radius: 8px;
+    padding: 16px 12px;
+}
+div[data-testid="metric-container"] label, div[data-testid="metric-container"] [data-testid="stMetricLabel"] {
+    color: var(--vp-text-muted) !important;
+}
+div[data-testid="metric-container"] [data-testid="stMetricValue"] {
+    color: var(--vp-text) !important;
+}
+div[data-testid="stMetricDelta"] svg { fill: var(--vp-text-muted) !important; }
+
+/* Status widget */
+.stStatusWidget { background: var(--vp-bg-card) !important; border-color: var(--vp-border) !important; }
+
+/* Progress bar */
+.stProgress > div > div {
+    background: var(--vp-bg-surface) !important;
+}
+.stProgress > div > div > div {
+    background: var(--vp-primary) !important;
+}
+
+/* Tabs */
+.stTabs [data-baseweb="tab-list"] {
+    border-color: var(--vp-border) !important;
+    gap: 0;
+}
+.stTabs [data-baseweb="tab"] {
+    color: var(--vp-text-muted) !important;
+    background: transparent !important;
+}
+.stTabs [data-baseweb="tab"][aria-selected="true"] {
+    color: var(--vp-primary) !important;
+}
+.stTabs [data-baseweb="tab-panel"] { padding: 16px 4px; }
+.stTabs [data-baseweb="tab-panel"] > * { margin-bottom: 12px; }
+.stTabs [data-baseweb="tab-panel"] > *:last-child { margin-bottom: 0; }
+
+/* Expander */
+.stExpander div[data-testid="stExpander"] {
+    border-color: var(--vp-border) !important;
+    background: var(--vp-bg-card) !important;
+    border-radius: 8px;
+}
+.stExpander div[data-testid="stExpander"] > div:last-child { padding: 4px 4px 12px 4px; }
+.stExpander summary {
+    color: var(--vp-text) !important;
+}
+.stExpander svg { fill: var(--vp-text-muted) !important; }
+
+/* Divider */
+hr { border-color: var(--vp-border) !important; }
+
+/* Info / Warning / Error boxes */
+.stAlert {
+    background: var(--vp-bg-card) !important;
+    border-color: var(--vp-border) !important;
+}
+.stAlert [data-testid="stMarkdown"] { color: var(--vp-text) !important; }
+.st-bq { background: var(--vp-bg-surface) !important; border-color: var(--vp-border) !important; }
+
+/* Code block */
+.stCodeBlock { background: var(--vp-bg-surface) !important; border-color: var(--vp-border) !important; }
+
+/* Download button */
+.stDownloadButton button {
+    background: var(--vp-bg-surface) !important;
+    color: var(--vp-text) !important;
+    border: 1px solid var(--vp-border) !important;
+}
+.stDownloadButton button:hover {
+    background: var(--vp-bg-hover) !important;
+    border-color: var(--vp-text-muted) !important;
+}
+
+/* Spinner / toast */
+div[data-testid="stToast"] {
+    background: var(--vp-bg-card) !important;
+    border-color: var(--vp-border) !important;
+    color: var(--vp-text) !important;
+}
+
+/* ── Sidebar specific ─────────────────────────────────────── */
+
+section[data-testid="stSidebar"] [data-testid="stMarkdown"] h3 {
+    font-size: 18px; font-weight: 700; letter-spacing: -0.02em; margin: 0;
+    color: var(--vp-text) !important;
+}
+section[data-testid="stSidebar"] [data-testid="stMarkdown"] strong {
+    font-size: 12px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.04em; color: var(--vp-text-dim);
+}
+
+/* ── Badges ────────────────────────────────────────────────── */
+
+.vp-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px; font-size: 11px;
+    font-weight: 600; line-height: 1.3; letter-spacing: 0.01em;
+}
+.vp-badge-success { background: var(--vp-badge-success-bg); color: var(--vp-badge-success-fg); }
+.vp-badge-warning { background: var(--vp-badge-warning-bg); color: var(--vp-badge-warning-fg); }
+.vp-badge-error { background: var(--vp-badge-error-bg); color: var(--vp-badge-error-fg); }
+
+/* ── Empty state ────────────────────────────────────────────── */
+
+.vp-empty-state {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; padding: 56px 32px; text-align: center;
+    border: 1px solid var(--vp-border);
+    border-radius: 8px; color: var(--vp-text-muted);
+    min-height: 280px;
+    background: var(--vp-bg-card);
+}
+.vp-empty-state h3 {
+    margin: 16px 0 8px 0; color: var(--vp-text);
+    font-size: 16px; font-weight: 600; letter-spacing: -0.01em;
+}
+.vp-empty-state p {
+    margin: 0 0 4px 0; font-size: 13px; max-width: 340px;
+    line-height: 1.6;
+}
+
+/* ── Stage list ─────────────────────────────────────────────── */
+
+.vp-stage-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.vp-stage {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 14px; font-size: 11px;
+    font-weight: 600; background: var(--vp-bg-surface);
+    border: 1px solid var(--vp-border); color: var(--vp-text);
+}
+
+/* ── Metric context ─────────────────────────────────────────── */
+
+.vp-metric-context {
+    font-size: 11px; color: var(--vp-text-muted);
+    margin-top: 2px; line-height: 1.4;
+}
+
+/* ── Copy button ────────────────────────────────────────────── */
+
+.vp-copy-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 12px; border: 1px solid var(--vp-border);
+    border-radius: 5px; background: var(--vp-bg-surface); color: var(--vp-text);
+    font-size: 12px; font-weight: 500; cursor: pointer;
+    transition: background 120ms, border-color 120ms; float: right;
+    font-family: var(--vp-font-sans);
+}
+.vp-copy-btn:hover { background: var(--vp-bg-hover); border-color: var(--vp-text-muted); }
+.vp-copy-btn:focus-visible { outline: 2px solid var(--vp-primary); outline-offset: 2px; }
+.vp-copy-btn:active { background: var(--vp-bg-hover); transform: scale(0.97); }
+
+/* ── Diff viewer ────────────────────────────────────────────── */
+
+.vp-diff-container { display: flex; gap: 16px; max-height: 400px; margin: 8px 0; }
+.vp-diff-pane {
+    flex: 1; overflow: auto; padding: 12px 16px;
+    border: 1px solid var(--vp-border); border-radius: 6px;
+    font-size: 14px; line-height: 1.7; background: var(--vp-bg-card);
+}
 .vp-diff-pane::-webkit-scrollbar { width: 6px; }
-.vp-diff-pane::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
-.vp-diff-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--vp-color-text-muted); margin-bottom: 8px; }
-.vp-diff-del { background: #fecaca; text-decoration: line-through; border-radius: 2px; padding: 0 1px; }
-.vp-diff-ins { background: #bbf7d0; border-radius: 2px; padding: 0 1px; }
-.vp-kbd { display: inline-block; padding: 2px 6px; border: 1px solid #d1d5db; border-radius: 4px; background: #f9fafb; font-family: monospace; font-size: 11px; color: var(--vp-color-text-muted); line-height: 1.4; }
+.vp-diff-pane::-webkit-scrollbar-thumb { background: var(--vp-border); border-radius: 3px; }
+.vp-diff-label {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--vp-text-muted);
+    margin-bottom: 8px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--vp-border);
+}
+.vp-diff-del { background: #5c2020; text-decoration: line-through; border-radius: 2px; padding: 0 2px; color: #f28b82; }
+.vp-diff-ins { background: #1a3a2a; border-radius: 2px; padding: 0 2px; color: #81c995; }
+
+/* ── Keyboard shortcuts ──────────────────────────────────────── */
+
+.vp-kbd {
+    display: inline-block; padding: 2px 6px;
+    border: 1px solid var(--vp-border); border-radius: 4px;
+    background: var(--vp-bg-surface); font-family: var(--vp-font-mono);
+    font-size: 11px; color: var(--vp-text-muted);
+    line-height: 1.4;
+}
+
+/* ── Section cards ───────────────────────────────────────────── */
+
+.vp-card {
+    border: 1px solid var(--vp-border);
+    border-radius: 8px; padding: 16px;
+    background: var(--vp-bg-card);
+}
+
+/* ── Responsive ──────────────────────────────────────────────── */
+
 @media (max-width: 768px) {
     .stColumns > div { min-width: 100% !important; flex-basis: 100% !important; }
     .vp-diff-container { flex-direction: column; }
 }
-.stTabs [data-baseweb="tab-panel"] { padding-top: 12px; }
+
+/* ── Focus visible ───────────────────────────────────────────── */
+
+:focus-visible { outline: 2px solid var(--vp-primary); outline-offset: 2px; }
+
+/* ── Connection error box ────────────────────────────────────── */
+
+.vp-conn-error {
+    background: var(--vp-badge-error-bg);
+    color: var(--vp-badge-error-fg);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.5;
+    margin-top: 6px;
+    word-break: break-word;
+    border: 1px solid #5c2020;
+}
 </style>
 """
 
@@ -187,7 +485,7 @@ with st.sidebar:
         base_url = chosen_base_url
     st.session_state.base_url = base_url
 
-    # Provider status — cached env key check
+    # Provider status — inline badge
     @st.cache_data
     def _check_env_key(env_key_name: str) -> bool:
         import os
@@ -205,28 +503,20 @@ with st.sidebar:
     has_manual_key = bool(api_key)
 
     if has_manual_key:
-        if auto:
-            st.markdown(
-                f'<div class="vp-badge vp-badge-success">'
-                f'🔍 Detected: {auto["provider"]}</div>',
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                f'<div class="vp-badge vp-badge-warning">'
-                f'Using: {provider}</div>',
-                unsafe_allow_html=True,
-            )
+        label = f'Detected: {auto["provider"]}' if auto else f'Using: {provider}'
+        variant = "success" if auto else "warning"
+        st.markdown(
+            f'<div class="vp-badge vp-badge-{variant}">{label}</div>',
+            unsafe_allow_html=True,
+        )
     elif has_env_key:
         st.markdown(
-            f'<div class="vp-badge vp-badge-success">'
-            f'Using env: {env_key_name}</div>',
+            f'<div class="vp-badge vp-badge-success">Using env: {env_key_name}</div>',
             unsafe_allow_html=True,
         )
     else:
         st.markdown(
-            '<div class="vp-badge vp-badge-error">'
-            'No API key set</div>',
+            '<div class="vp-badge vp-badge-error">No API key set</div>',
             unsafe_allow_html=True,
         )
 
@@ -235,20 +525,16 @@ with st.sidebar:
     if has_any_key:
         test_col1, test_col2 = st.columns([2, 1])
         with test_col1:
-            test_clicked = st.button("🔌 Test Connection", use_container_width=True, key="test_btn")
+            test_clicked = st.button("Test Connection", type="secondary", use_container_width=True, key="test_btn")
         with test_col2:
             if "conn_status" in st.session_state:
                 cs = st.session_state.conn_status
-                if cs["connected"]:
-                    st.markdown(
-                        '<div class="vp-badge vp-badge-success">✓</div>',
-                        unsafe_allow_html=True,
-                    )
-                else:
-                    st.markdown(
-                        '<div class="vp-badge vp-badge-error">✗</div>',
-                        unsafe_allow_html=True,
-                    )
+                variant = "success" if cs["connected"] else "error"
+                st.markdown(
+                    f'<div class="vp-badge vp-badge-{variant}">'
+                    f'{"Connected" if cs["connected"] else "Failed"}</div>',
+                    unsafe_allow_html=True,
+                )
 
         if test_clicked:
             with st.spinner("Connecting..."):
@@ -259,13 +545,27 @@ with st.sidebar:
                     model=st.session_state.model,
                 )
                 cs = test_llm_connection(cfg)
+                cs["provider"] = st.session_state.provider
+                cs["model_tested"] = st.session_state.model
                 st.session_state.conn_status = cs
                 if cs["connected"]:
                     st.toast("Connected successfully!", icon="✅")
                 else:
-                    st.toast(f"Connection failed", icon="❌")
-                    if cs.get("error"):
-                        st.caption(f"Error: {cs['error']}")
+                    st.toast("Connection failed", icon="❌")
+
+        # Show persistent error from last connection test
+        if "conn_status" in st.session_state and not st.session_state.conn_status["connected"]:
+            cs = st.session_state.conn_status
+            err = cs.get("error", "")
+            prov = cs.get("provider", "?")
+            mdl = cs.get("model_tested", "?")
+            if err:
+                st.markdown(
+                    f'<div class="vp-conn-error">'
+                    f'<strong>{prov}</strong> · {mdl}<br>{err}'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
 
     # --- Best free model indicator ---
     _best_free_models = {
@@ -279,34 +579,30 @@ with st.sidebar:
     }
     tip = _best_free_models.get(provider, "")
     if tip:
+        lines = tip.replace("\n", "<br>")
         st.markdown(
-            f'<div style="font-size:11px;color:#6b7280;margin-top:4px;'
-            f'padding:6px 10px;background:#f3f4f6;border-radius:6px;line-height:1.5;">'
-            f'⭐ Best free models:<br>{tip}</div>',
+            f'<div style="font-size:11px;margin-top:4px;'
+            f'padding:6px 10px;background:var(--vp-bg-surface);border-radius:6px;line-height:1.5;'
+            f'color:var(--vp-text-muted);font-family:var(--vp-font-sans);">'
+            f'Recommended models:<br>{lines}</div>',
             unsafe_allow_html=True,
         )
 
-    st.divider()
+    # --- Pipeline settings (collapsible) ---
+    with st.expander("Pipeline Settings", expanded=False):
+        use_scrub = st.checkbox("Heuristic scrub", value=True, key="use_scrub")
+        use_paraphrase = st.checkbox("LLM paraphrasing", value=True, key="use_paraphrase")
+        use_polish = st.checkbox("Style polish", value=True, key="use_polish")
+        n_candidates = st.slider(
+            "Candidates (N)",
+            min_value=1,
+            max_value=16,
+            value=8,
+            help="More candidates = better output but slower. 8 is a good default.",
+        )
 
-    # --- Pipeline settings section ---
-    st.markdown("**Pipeline Stages**")
-
-    use_scrub = st.checkbox("Heuristic scrub", value=True, key="use_scrub")
-    use_paraphrase = st.checkbox("LLM paraphrasing", value=True, key="use_paraphrase")
-    use_polish = st.checkbox("Style polish", value=True, key="use_polish")
-    n_candidates = st.slider(
-        "Candidates (N)",
-        min_value=1,
-        max_value=16,
-        value=8,
-        help="More candidates = better output but slower. 8 is a good default.",
-    )
-
-    st.divider()
-
-    # --- About section ---
-    with st.expander("About VoicePrint", expanded=False):
-        st.markdown("""
+        with st.expander("About VoicePrint", expanded=False):
+            st.markdown("""
 Multi-stage pipeline that transforms AI-generated text
 into natural, human-like writing.
 
@@ -315,7 +611,7 @@ into natural, human-like writing.
 2. Adversarial paraphrasing (LLM API)
 3. Detection scoring (ensemble)
 4. Style polish (no model)
-        """)
+            """)
 
     st.divider()
     st.markdown(
@@ -324,7 +620,7 @@ into natural, human-like writing.
         'title="Support darkcharon3301 on Chai4Me" '
         'style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;'
         'background:#ffffff;padding:8px 32px;border-radius:16px;text-decoration:none;'
-        'border:1px solid #e5e7eb;box-shadow:0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05);">'
+        'border:2px solid #ffffff;box-shadow:0 2px 8px rgba(0,0,0,0.15);">'
         '<img src="https://chai4.me/icons/wordmark.png" alt="Chai4Me" style="height:32px;object-fit:contain;"/>'
         '</a></div>',
         unsafe_allow_html=True,
@@ -365,25 +661,29 @@ def _word_diff_html(original: str, humanized: str) -> str:
 
 
 def _copy_button_html(text: str, button_id: str = "copy-btn") -> str:
-    """Safe copy button — text in data-* attribute via HTML character references.
-    No inline JSON, no innerHTML, no onclick injection surface.
-    The browser decodes character references when reading dataset.text.
-    """
-    # HTML-attribute-safe encoding: character references for all dangerous chars
+    """Copy button with clipboard API + textarea fallback."""
     safe = text.replace("&", "&amp;")
     safe = safe.replace('"', "&quot;")
     safe = safe.replace("<", "&lt;")
     safe = safe.replace(">", "&gt;")
+    safe_nl = safe.replace("\n", "\\n").replace("\r", "\\r")
     return (
         f'<button id="{button_id}" class="vp-copy-btn" '
         f'data-text="{safe}" '
-        f'onclick="(async()=>{{'
-        f'await navigator.clipboard.writeText(this.dataset.text);'
-        f'this.textContent=\'Copied!\';'
-        f'setTimeout(()=>{{this.textContent=\'📋 Copy\'}},1500)'
+        f'onclick="(function(){{'
+        f"var t=this.getAttribute('data-text');"
+        f'var cp=function(){{'
+        f"var ta=document.createElement('textarea');"
+        f"ta.value=t;ta.style.position='fixed';ta.style.left='-9999px';"
+        f"document.body.appendChild(ta);ta.select();"
+        f"document.execCommand('copy');document.body.removeChild(ta);"
+        f"}};try{{navigator.clipboard.writeText(t).then(cp).catch(cp);}}"
+        f"catch(e){{cp();}}"
+        f"this.textContent='Copied';var btn=this;"
+        f"setTimeout(function(){{btn.textContent='Copy';}},1500);"
         f'}})()" '
         f'aria-label="Copy text to clipboard">'
-        f'📋 Copy</button>'
+        f'Copy</button>'
     )
 
 
@@ -393,16 +693,6 @@ def _status_badge(text: str, variant: str = "success") -> str:
         f'<span class="vp-badge vp-badge-{variant}">{text}</span>'
     )
 
-
-def _metric_help(label: str) -> str:
-    """Context label for metrics."""
-    helps = {
-        "AI Probability": "Below 50% = looks human-written",
-        "Similarity": "Above 68% = meaning preserved",
-        "Burstiness": "0.4–0.7 = natural rhythm",
-        "Pattern Score": "Below 0.1 = few AI patterns",
-    }
-    return f'<div class="vp-metric-context">{helps.get(label, "")}</div>'
 
 
 # ---------------------------------------------------------------------------
@@ -441,31 +731,32 @@ def _stages_html(completed: list[str], active: str | None, error: str | None = N
     for i, stage in enumerate(_STAGE_NAMES):
         if i > 0:
             parts.append(
-                '<span style="color:#d1d5db;margin:0 4px;font-size:12px">\u2192</span>'
+                '<span style="color:var(--vp-text-dim);margin:0 4px;font-size:11px;font-weight:300;">→</span>'
             )
 
         if stage == error:
-            bg, fg = "#fee2e2", "#991b1b"
-            icon = "\u2717"
+            bg, fg = "var(--vp-badge-error-bg)", "var(--vp-badge-error-fg)"
+            icon = "✗"
         elif stage in completed:
-            bg, fg = "#d1fae5", "#065f46"
-            icon = "\u2713"
+            bg, fg = "var(--vp-badge-success-bg)", "var(--vp-badge-success-fg)"
+            icon = "✓"
         elif stage == active:
-            bg, fg = "#dbeafe", "#1e40af"
-            icon = "\u25cf"
+            bg, fg = "#1e3a5f", "var(--vp-primary)"
+            icon = "●"
         else:
-            bg, fg = "#f3f4f6", "#9ca3af"
-            icon = "\u25cb"
+            bg, fg = "var(--vp-bg-surface)", "var(--vp-text-dim)"
+            icon = "○"
 
-        border = ';border:1px solid #93c5fd' if stage == active else ''
+        border = 'border:1px solid var(--vp-primary);' if stage == active else ''
         parts.append(
             f'<span style="display:inline-flex;align-items:center;gap:3px;'
-            f'padding:4px 10px;border-radius:12px;font-size:12px;font-weight:500;'
-            f'background:{bg};color:{fg}{border}">'
+            f'padding:3px 10px;border-radius:14px;font-size:11px;font-weight:600;'
+            f'background:{bg};color:{fg};{border}line-height:1.3;'
+            f'font-family:-apple-system,BlinkMacSystemFont,sans-serif;">'
             f'{icon} {stage}</span>'
         )
 
-    return '<div style="display:flex;align-items:center;flex-wrap:wrap">' + "".join(parts) + "</div>"
+    return '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;">' + "".join(parts) + "</div>"
 
 
 # ---------------------------------------------------------------------------
@@ -480,10 +771,10 @@ col_input, col_output = st.columns(2)
 with col_input:
     st.markdown("**Input**")
     input_text = st.text_area(
-        "Text to humanize",
+        "Input text",
         height=300,
         placeholder="Paste your AI-generated text here...",
-        label_visibility="visible",
+        label_visibility="collapsed",
         key="input_text",
     )
     char_count = len(input_text.strip()) if input_text else 0
@@ -491,7 +782,17 @@ with col_input:
         if char_count < 10:
             st.caption(f":red[{char_count} chars — minimum 10 required]")
         else:
-            st.caption(f"{char_count:,} characters")
+            pct = min(char_count / 500, 1.0)
+            bar_color = "var(--vp-success)" if char_count >= 10 else "var(--vp-error)"
+            st.markdown(
+                f'<div style="display:flex;align-items:center;gap:8px;margin-top:2px;">'
+                f'<div style="flex:1;height:4px;background:var(--vp-border);border-radius:2px;overflow:hidden;">'
+                f'<div style="width:{pct*100:.0f}%;height:100%;background:{bar_color};'
+                f'border-radius:2px;transition:width 200ms;"></div></div>'
+                f'<span style="font-size:12px;color:var(--vp-text-muted);white-space:nowrap;font-variant-numeric:tabular-nums;">'
+                f'{char_count:,} chars</span></div>',
+                unsafe_allow_html=True,
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -508,8 +809,8 @@ with col_btn:
     )
 with col_shortcut:
     st.markdown(
-        '<div style="padding-top:10px;text-align:center;color:#6b7280;font-size:13px">'
-        '<span class="vp-kbd">Ctrl</span> + <span class="vp-kbd">Enter</span>'
+        '<div style="padding-top:10px;text-align:center;color:var(--vp-text-muted);font-size:12px">'
+        '<kbd class="vp-kbd">Ctrl</kbd> + <kbd class="vp-kbd">Enter</kbd>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -537,9 +838,13 @@ if (!window._vpKeyHandler) {
 
 if humanize_clicked:
     if not input_text or not input_text.strip():
-        st.warning("Please enter some text to humanize.")
+        st.warning("Please enter some text to humanize.", icon="⚠️")
     elif not api_key and not preset.get("env_key"):
-        st.error("Add an API key in the sidebar, or set an environment variable.")
+        st.error(
+            "No API key configured. Add one in the sidebar, or set the "
+            f"`{preset.get('env_key', 'OPENCODE_API_KEY')}` environment variable.",
+            icon="❌",
+        )
     else:
         config = build_config(
             provider=st.session_state.provider,
@@ -621,10 +926,8 @@ if result:
             )
 
         st.markdown(
-            f'<div style="background:#1a1a2e;border:1px solid #333;border-radius:8px;'
-            f'padding:16px;min-height:270px;max-height:400px;overflow-y:auto;'
-            f'font-size:14px;line-height:1.7;color:#e0e0e0;white-space:pre-wrap;'
-            f'font-family:-apple-system,BlinkMacSystemFont,sans-serif;">'
+            f'<div class="vp-card" style="min-height:270px;max-height:400px;overflow-y:auto;'
+            f'font-size:14px;line-height:1.7;white-space:pre-wrap;">'
             f'{result.text}</div>',
             unsafe_allow_html=True,
         )
@@ -651,51 +954,60 @@ if result:
             unsafe_allow_html=True,
         )
 
-    st.divider()
+    st.markdown("<div style='margin-top:16px;margin-bottom:16px;'></div>", unsafe_allow_html=True)
 
     method_tag = (
-        "Heuristic" if "statistical" in result.detection_summary
+        "Statistical" if "statistical" in result.detection_summary
         else "Model"
     )
-    st.markdown(f"**Detection Scores** {_status_badge(method_tag)}")
+    st.markdown(
+        f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
+        f'<span style="font-size:14px;font-weight:600;">Detection Scores</span>'
+        f'<span class="vp-badge vp-badge-success">{method_tag}</span></div>',
+        unsafe_allow_html=True,
+    )
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         ai_pct = result.ai_probability
+        good = ai_pct < 0.5
         st.metric(
             "AI Probability",
             f"{ai_pct:.1%}",
-            delta="Human" if ai_pct < 0.5 else "AI",
-            delta_color="normal" if ai_pct < 0.5 else "inverse",
+            delta="Human" if good else "AI",
+            delta_color="normal" if good else "inverse",
         )
-        st.markdown(_metric_help("AI Probability"), unsafe_allow_html=True)
+        st.caption("Below 50% = human-like")
     with c2:
         sim = result.similarity
+        good = sim >= 0.68
         st.metric(
             "Similarity",
             f"{sim:.1%}",
-            delta="OK" if sim >= 0.68 else "Low",
-            delta_color="normal" if sim >= 0.68 else "inverse",
+            delta="Preserved" if good else "Low",
+            delta_color="normal" if good else "inverse",
         )
-        st.markdown(_metric_help("Similarity"), unsafe_allow_html=True)
+        st.caption("Above 68% = meaning kept")
     with c3:
         bur = result.burstiness
+        good = 0.4 <= bur <= 0.7
         st.metric(
             "Burstiness",
             f"{bur:.2f}",
-            delta="Human" if 0.4 <= bur <= 0.7 else "AI-like",
-            delta_color="normal" if 0.4 <= bur <= 0.7 else "inverse",
+            delta="Natural" if good else "Extreme",
+            delta_color="normal" if good else "inverse",
         )
-        st.markdown(_metric_help("Burstiness"), unsafe_allow_html=True)
+        st.caption("0.4–0.7 = natural rhythm")
     with c4:
         ps = result.pattern_score
+        good = ps < 0.1
         st.metric(
             "Pattern Score",
             f"{ps:.3f}",
-            delta="Low" if ps < 0.1 else "High",
-            delta_color="normal" if ps < 0.1 else "inverse",
+            delta="Clean" if good else "AI patterns",
+            delta_color="normal" if good else "inverse",
         )
-        st.markdown(_metric_help("Pattern Score"), unsafe_allow_html=True)
+        st.caption("Below 0.1 = few AI signals")
 
     # --- Diff viewer (lazy: only compute HTML when expander is opened) ---
     with st.expander("Side-by-Side Diff", expanded=False):
@@ -722,15 +1034,40 @@ if result:
         ["Detection", "Readability", "Signals", "Stages"]
     )
     with tab1:
-        st.code(result.detection_summary, language=None)
+        st.text(result.detection_summary)
+        if hasattr(result, "perplexity") and result.perplexity is not None:
+            st.caption(f"Perplexity score: {result.perplexity:.1f} (higher = more human-like)")
     with tab2:
+        r = result.readability
+        bd = result.burstiness_detail
         cols = st.columns(2)
-        with cols[0]:
-            st.json(result.readability)
-        with cols[1]:
-            st.json(result.burstiness_detail)
+        if r:
+            with cols[0]:
+                st.markdown("**Readability**")
+                for k, v in r.items():
+                    label = k.replace("_", " ").title()
+                    if isinstance(v, float):
+                        st.markdown(f"- **{label}:** {v:.2f}")
+                    else:
+                        st.markdown(f"- **{label}:** {v}")
+        if bd:
+            with cols[1]:
+                st.markdown("**Burstiness Detail**")
+                for k, v in bd.items():
+                    label = k.replace("_", " ").title()
+                    if isinstance(v, float):
+                        st.markdown(f"- **{label}:** {v:.4f}")
+                    else:
+                        st.markdown(f"- **{label}:** {v}")
     with tab3:
-        st.json(result.signals)
+        sig = result.signals
+        if sig:
+            for k, v in sig.items():
+                label = k.replace("_", " ").title()
+                if isinstance(v, float):
+                    st.markdown(f"- **{label}:** {v:.4f}")
+                else:
+                    st.markdown(f"- **{label}:** {v}")
     with tab4:
         for s in result.stages:
             st.markdown(f"- {s}")
@@ -740,7 +1077,7 @@ if result:
     dl1, dl2 = st.columns(2)
     with dl1:
         st.download_button(
-            "Download humanized text",
+            "Download text",
             data=result.text,
             file_name="humanized_text.txt",
             mime="text/plain",
@@ -773,15 +1110,12 @@ else:
         else:
             st.markdown("""
 <div class="vp-empty-state">
-    <h3>Paste AI text, get human writing</h3>
-    <p>Enter AI-generated text in the input panel, then click Humanize.</p>
-    <p>The pipeline scrubs patterns, paraphrases with an LLM, polishes style, and checks detection scores.</p>
-    <div class="vp-stage-list" style="margin-top:16px">
-        <span class="vp-stage">1. Scrub</span>
-        <span class="vp-stage">2. Paraphrase</span>
-        <span class="vp-stage">3. Polish</span>
-        <span class="vp-stage">4. Detect</span>
-    </div>
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--vp-text-dim)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+    </svg>
+    <h3>Ready to humanize</h3>
+    <p>Enter AI-generated text in the input panel, then click Humanize (Ctrl+Enter).</p>
+    <p style="font-size:12px;color:var(--vp-text-dim);margin-top:8px;">4-stage pipeline &mdash; scrub, paraphrase, polish, detect</p>
 </div>
             """, unsafe_allow_html=True)
 

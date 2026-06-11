@@ -445,6 +445,92 @@ def cleanup_numbered_lists(text: str) -> str:
     return text
 
 
+@rule
+def split_long_sentences(text: str) -> str:
+    """Split overly long sentences to increase burstiness.
+
+    GPTZero flags uniform sentence length as AI. Humans naturally vary —
+    some thoughts are short, others run long. This rule finds sentences
+    over the threshold and splits them at natural clause boundaries,
+    injecting short fragments to create rhythm variance.
+    """
+    from ._text import sentences as _split
+
+    _SPLIT_THRESHOLD = 25  # words — above this, attempt split
+    _SPLIT_CONJUNCTIONS = re.compile(
+        r"\b(which|that|while|although|because|whereas|where|when|"
+        r"since|unless|until|before|after|if|though)\b",
+        re.IGNORECASE,
+    )
+    _SPLIT_COORDINATING = re.compile(
+        r",\s*(and|but|or|yet|so)\b", re.IGNORECASE,
+    )
+    _FRAGMENTS = [
+        "That's the key.", "Here's why.", "Makes sense.", "Or not.",
+        "Right?", "Simple enough.", "Not bad.", "And that matters.",
+    ]
+
+    _rng = random.Random()
+    _rng.seed(hashlib.md5(text.encode()).hexdigest())
+
+    sents = _split(text.strip())
+    if not sents:
+        return text
+
+    result: list[str] = []
+    for sent in sents:
+        words = sent.split()
+        if len(words) <= _SPLIT_THRESHOLD:
+            result.append(sent)
+            continue
+
+        # Find the best split point: conjunction or coordinating near midpoint
+        mid = len(words) // 2
+        best_pos = -1
+        best_dist = len(words)
+
+        # Check subordinate conjunctions (split BEFORE them)
+        for m in _SPLIT_CONJUNCTIONS.finditer(sent):
+            word_idx = len(sent[:m.start()].split())
+            dist = abs(word_idx - mid)
+            if dist < best_dist and 5 < word_idx < len(words) - 3:
+                best_dist = dist
+                best_pos = word_idx
+
+        # Check coordinating conjunctions after comma (split AT comma)
+        for m in _SPLIT_COORDINATING.finditer(sent):
+            word_idx = len(sent[:m.start()].split())
+            dist = abs(word_idx - mid)
+            if dist < best_dist and 5 < word_idx < len(words) - 3:
+                best_dist = dist
+                best_pos = word_idx + 1  # after the comma
+
+        # Fallback: split at midpoint on a word boundary
+        if best_pos <= 0:
+            best_pos = mid
+
+        part1 = " ".join(words[:best_pos]).rstrip(",.!?;:") + "."
+        part2_words = words[best_pos:]
+        # Strip leading conjunction if the second part starts with one
+        if part2_words and part2_words[0].lower() in (
+            "and", "but", "or", "yet", "so", "which", "that",
+        ):
+            part2_words = part2_words[1:]
+        part2 = " ".join(part2_words)
+        if part2 and part2[0].islower():
+            part2 = part2[0].upper() + part2[1:]
+        if part2 and not part2.endswith((".", "!", "?")):
+            part2 += "."
+
+        result.append(part1)
+        # Occasionally inject a short fragment between the two halves
+        if _rng.random() < 0.35 and len(part1.split()) > 6:
+            result.append(_rng.choice(_FRAGMENTS))
+        result.append(part2)
+
+    return " ".join(result)
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------

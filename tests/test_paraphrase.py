@@ -62,7 +62,7 @@ class TestLitellmKwargs:
 # ---------------------------------------------------------------------------
 
 class TestGenerateCandidate:
-    @patch("voiceprint.paraphrase.litellm.completion")
+    @patch("litellm.completion")
     def test_returns_stripped_response(self, mock_completion):
         mock_response = MagicMock()
         mock_response.choices = [MagicMock(message=MagicMock(content="  Humanized text.  "))]
@@ -73,7 +73,7 @@ class TestGenerateCandidate:
         assert result == "Humanized text."
         mock_completion.assert_called_once()
 
-    @patch("voiceprint.paraphrase.litellm.completion")
+    @patch("litellm.completion")
     def test_prompt_contains_original_text(self, mock_completion):
         mock_response = MagicMock()
         mock_response.choices = [MagicMock(message=MagicMock(content="Paraphrased."))]
@@ -86,7 +86,7 @@ class TestGenerateCandidate:
         prompt_content = call_kwargs.kwargs["messages"][0]["content"]
         assert "Test input text" in prompt_content
 
-    @patch("voiceprint.paraphrase.litellm.completion")
+    @patch("litellm.completion")
     def test_custom_temperature_passed(self, mock_completion):
         mock_response = MagicMock()
         mock_response.choices = [MagicMock(message=MagicMock(content="Done."))]
@@ -98,7 +98,7 @@ class TestGenerateCandidate:
         call_kwargs = mock_completion.call_args
         assert call_kwargs.kwargs["temperature"] == 0.7
 
-    @patch("voiceprint.paraphrase.litellm.completion")
+    @patch("litellm.completion")
     def test_prev_p_ai_includes_feedback(self, mock_completion):
         """Detection-guided refinement: prev_p_ai should add feedback to prompt."""
         mock_response = MagicMock()
@@ -113,7 +113,7 @@ class TestGenerateCandidate:
         assert "Previous attempt scored" in prompt_content
         assert "0.35" in prompt_content
 
-    @patch("voiceprint.paraphrase.litellm.completion")
+    @patch("litellm.completion")
     def test_prev_p_ai_high_escalates_tone(self, mock_completion):
         """prev_p_ai ≥ 0.6 should add 'clearly AI' feedback."""
         mock_response = MagicMock()
@@ -128,7 +128,7 @@ class TestGenerateCandidate:
         assert "clearly AI-detected" in prompt_content
         assert "Rewrite from scratch" in prompt_content
 
-    @patch("voiceprint.paraphrase.litellm.completion")
+    @patch("litellm.completion")
     def test_prev_p_ai_none_no_feedback(self, mock_completion):
         """When prev_p_ai is None, no feedback line should appear."""
         mock_response = MagicMock()

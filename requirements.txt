@@ -25,5 +25,8 @@ nltk>=3.8
 # Stylometric lexical diversity metrics (optional, enhances AI-detection signals)
 pystylometry>=1.4
 
+# Clause restructuring (syntactic parsing)
+spacy>=3.8
+
 # Testing
 pytest>=7.0

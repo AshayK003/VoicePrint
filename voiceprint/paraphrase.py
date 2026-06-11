@@ -12,16 +12,26 @@ import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlparse
 
-import litellm
+# litellm is imported lazily inside functions that use it (~1.5s import)
+# to avoid slowing down startup. Configure once via _ensure_litellm().
 
-# Disable litellm file operations (avoids [Errno 22] on Windows)
-litellm.cache = None
-litellm.success_callback = []
-litellm.failure_callback = []
-litellm.set_verbose = False
-# Suppress litellm's own HTTP request logging (avoids spilling API keys to stdout)
-os.environ.setdefault("LITELLM_LOG", "WARNING")
-os.environ.setdefault("OPENAI_LOG", "WARN")
+_LITELLM_READY = False
+
+
+def _ensure_litellm():
+    """Lazy import + one-time config of litellm."""
+    global _LITELLM_READY
+    if _LITELLM_READY:
+        return
+    import litellm
+    litellm.cache = None
+    litellm.success_callback = []
+    litellm.failure_callback = []
+    litellm.set_verbose = False
+    os.environ.setdefault("LITELLM_LOG", "WARNING")
+    os.environ.setdefault("OPENAI_LOG", "WARN")
+    _LITELLM_READY = True
+
 
 from .config import Config, load_config
 from .similarity import check_similarity
@@ -216,7 +226,7 @@ def test_llm_connection(config: Config, timeout: int = 15) -> dict:
 
     Makes a minimal 1-token completion call. No streaming, no side effects.
     """
-    import litellm
+    _ensure_litellm()
 
     try:
         kwargs = _litellm_kwargs(config, temperature=0.5)
@@ -224,6 +234,7 @@ def test_llm_connection(config: Config, timeout: int = 15) -> dict:
         kwargs["max_tokens"] = 2
         kwargs["timeout"] = timeout
 
+        import litellm
         resp = litellm.completion(**kwargs)
         if resp and resp.choices and len(resp.choices) > 0:
             return {"connected": True, "error": None}
@@ -292,11 +303,13 @@ def generate_candidate(
     if feedback:
         content = content.rstrip() + feedback
 
+    _ensure_litellm()
     kwargs = _litellm_kwargs(config, temp)
     kwargs["messages"] = [
         {"role": "user", "content": content}
     ]
 
+    import litellm
     response = litellm.completion(**kwargs)
     content = response.choices[0].message.content
     if not content or not content.strip():

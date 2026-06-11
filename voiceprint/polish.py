@@ -243,14 +243,80 @@ def inject_vocabulary_variety(text: str) -> str:
             result.append(sent)
             continue
 
-        # ~4% chance per applicable sentence to swap one word
-        if _rng_vocab.random() < 0.04:
+        # ~7% chance per applicable sentence to swap one word
+        if _rng_vocab.random() < 0.07:
             candidates = [(pattern, repl) for pattern, repl in VOCAB_SWAPS
                           if re.search(pattern, sent, re.IGNORECASE)]
             if candidates:
                 pattern, repl = _rng_vocab.choice(candidates)
                 if _rng_vocab.random() < 0.5:  # 50% swap rate when triggered
                     sent = re.sub(pattern, repl, sent, count=1, flags=re.IGNORECASE)
+
+        result.append(sent)
+
+    return " ".join(result)
+
+
+# ---------------------------------------------------------------------------
+# Perplexity spike injection — uncommon words that create token-level outliers
+# Research: "Insert perplexity spikes in ~5% of sentences. Every spike drops
+# GPTZero confidence 2-3%." Humans occasionally use unusual words; AI avoids them.
+# These words are rare enough to spike perplexity but natural enough to fit
+# contextually.
+# ---------------------------------------------------------------------------
+
+PERPLEXITY_SPIKES: list[tuple[str, str]] = [
+    # Adjective swaps — contextually plausible uncommon alternatives
+    (r"\bgood\b", "commendable"),
+    (r"\bbig\b", "substantial"),
+    (r"\bclear\b", "unambiguous"),
+    (r"\bimportant\b", "consequential"),
+    (r"\bdifficult\b", "onerous"),
+    (r"\bshow\b", "corroborate"),
+    (r"\bhelp\b", "facilitate"),
+    (r"\buse\b", "leverage"),
+    # Verb-level spikes
+    (r"\btry\b", "endeavor"),
+    (r"\bstart\b", "embark"),
+    (r"\bmake\b", "craft"),
+    (r"\bfind\b", "uncover"),
+    (r"\bthink\b", "contemplate"),
+    (r"\bchange\b", "transform"),
+    (r"\bgrow\b", "flourish"),
+]
+
+_rng_spikes = random.Random()
+
+
+@rule
+def inject_perplexity_spikes(text: str) -> str:
+    """Inject uncommon words that create perplexity outliers.
+
+    GPTZero relies on token-level probability uniformity. By inserting
+    rare-but-plausible words at ~5% of sentences, we create statistical
+    noise that confuses the classifier without sounding unnatural.
+    """
+    _rng_spikes.seed(hashlib.md5(text.encode()).hexdigest())
+    sents = _split_sentences(text)
+    if len(sents) < 4:
+        return text
+
+    result = []
+    for sent in sents:
+        words = sent.split()
+        if len(words) < 6:
+            result.append(sent)
+            continue
+
+        # ~5% chance to inject a perplexity spike
+        if _rng_spikes.random() < 0.05:
+            candidates = [
+                (pat, repl) for pat, repl in PERPLEXITY_SPIKES
+                if re.search(pat, sent, re.IGNORECASE)
+            ]
+            if candidates:
+                pat, repl = _rng_spikes.choice(candidates)
+                sent = re.sub(pat, repl, sent, count=1, flags=re.IGNORECASE)
 
         result.append(sent)
 

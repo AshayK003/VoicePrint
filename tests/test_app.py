@@ -5,7 +5,7 @@ Tests for it are in test_config.py. This file tests app.py helpers only.
 """
 
 import pytest
-from app import _word_diff_html, _copy_button_html, _status_badge, _metric_help
+from app import _word_diff_html, _copy_button_html, _status_badge
 
 
 # ---------------------------------------------------------------------------
@@ -50,7 +50,7 @@ class TestCopyButtonHtml:
     def test_returns_button_html(self):
         js = _copy_button_html("Hello world")
         assert "<button" in js
-        assert "this.dataset.text" in js
+        assert "getAttribute" in js
         assert "Copy" in js
 
     def test_escapes_double_quotes(self):
@@ -100,16 +100,4 @@ class TestStatusBadge:
         assert "vp-badge-error" in html
 
 
-# ---------------------------------------------------------------------------
-# _metric_help
-# ---------------------------------------------------------------------------
 
-class TestMetricHelp:
-    def test_known_metric(self):
-        html = _metric_help("AI Probability")
-        assert "Below 50%" in html
-
-    def test_unknown_metric(self):
-        html = _metric_help("Unknown")
-        assert '<div class="vp-metric-context">' in html
-        assert "</div>" in html

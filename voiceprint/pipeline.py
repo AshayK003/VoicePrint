@@ -14,6 +14,7 @@ from dataclasses import dataclass
 
 from .config import Config, load_config
 from .scrub import scrub
+from .restructure import apply_restructure
 from .paraphrase import generate_candidates, select_best, NINJA_PROMPTS
 from .detect import DetectorEnsemble, EnsembleResult
 from .polish import polish
@@ -73,6 +74,7 @@ class HumanizePipeline:
         text: str,
         use_scrub: bool = True,
         use_paraphrase: bool = True,
+        use_restructure: bool | None = None,
         use_polish: bool = True,
         n_candidates: int | None = None,
         progress_callback: callable | None = None,
@@ -84,6 +86,7 @@ class HumanizePipeline:
             text: Input AI-generated text
             use_scrub: Enable Stage 1 (heuristic scrub)
             use_paraphrase: Enable Stage 2 (LLM paraphrasing)
+            use_restructure: Enable Stage 2b (clause restructuring). Defaults to config.use_restructure
             use_polish: Enable Stage 4 (style polish)
             n_candidates: Override number of LLM candidates
             progress_callback: fn(progress_float, message_str) for UI updates
@@ -108,6 +111,8 @@ class HumanizePipeline:
             )
         stages: list[str] = []
         max_iter = self.config.max_iterations
+        if use_restructure is None:
+            use_restructure = self.config.use_restructure
 
         def _report(pct: float, msg: str):
             if progress_callback:
@@ -159,6 +164,13 @@ class HumanizePipeline:
                 except Exception as e:
                     _report(0.65, f"Stage 2 skipped (LLM failed): {e}")
 
+            # Stage 2b: Clause restructuring (counters GPTZero Paraphraser Shield)
+            if use_restructure:
+                _report(0.68, f"Stage 2b: Clause restructuring{iter_label}...")
+                current = apply_restructure(current, probability=self.config.restructure_probability)
+                if "restructure" not in stages:
+                    stages.append("restructure")
+
             # Stage 3: Style polish
             if use_polish:
                 _report(0.70, f"Stage 3: Style polish{iter_label}...")
@@ -209,6 +221,23 @@ class HumanizePipeline:
             if detection.passed:
                 _report(0.90, f"Detection passed on attempt {iteration + 1}!")
                 break
+
+            # Burstiness gate: force retry if burstiness too low
+            # GPTZero's Paraphraser Shield specifically targets low-burstiness text
+            # even when other signals pass. Research: burstiness < 0.3 = red flag.
+            # Only applies when detection hasn't already passed — if it passed,
+            # the text is already good enough to ship.
+            _BURSTINESS_MIN = 0.3
+            current_burstiness = burstiness(current)
+            if (current_burstiness < _BURSTINESS_MIN
+                    and iteration < max_iter - 1
+                    and use_paraphrase):
+                _report(
+                    0.85,
+                    f"Burstiness {current_burstiness:.2f} < {_BURSTINESS_MIN} — "
+                    f"retrying with higher ninja level...",
+                )
+                continue
 
         # Final metrics on best result (compute in parallel)
         _report(0.95, "Computing final metrics...")

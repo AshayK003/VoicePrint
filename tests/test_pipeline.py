@@ -51,7 +51,7 @@ class TestHumanizePipeline:
             "Furthermore, the results are very important.",
             use_polish=False,
         )
-        assert mock_gen.call_count == 4
+        assert mock_gen.call_count == 5
 
     @patch("voiceprint.pipeline.generate_candidates", side_effect=Exception("API error"))
     def test_paraphrase_failure_continues(self, mock_gen):

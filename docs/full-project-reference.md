@@ -65,6 +65,9 @@ VoicePrint is a multi-stage AI text humanization pipeline that transforms AI-gen
 │  • Formal-to-casual tone conversion (60+ replacements)  │
 │  • Vocabulary variety (perplexity spikes via rare words)│
 │  • Rhetorical questions + sentence fragments            │
+│  • **Naturalize**: final pass reduces over-injected     │
+│    artifacts (dysfluencies, narratives, fragments)      │
+│    for natural readability                              │
 │  Module: voiceprint/polish.py                           │
 └─────────────────────────┬───────────────────────────────┘
                           │
@@ -239,7 +242,12 @@ VoicePrint/
 - Parallel metrics computation (ThreadPoolExecutor)
 - Progress reporting callback for UI
 
-### Phase 8: Streamlit UI (app.py) — COMPLETED
+### Phase 8: Naturalize & Readability Polish — COMPLETED
+- Added `naturalize()` as the final polish rule: reduces over-applied dysfluency, personal narrative, and self-doubt markers
+- Merges short fragments back into adjacent sentences for flow
+- Bumped `max_iterations` to 5 for more aggressive evasion cycles
+
+### Phase 9: Streamlit UI (app.py) — COMPLETED
 - Text input area with clear button
 - Pipeline controls (aggressiveness slider, stage toggles)
 - Side-by-side comparison view (diff highlighting)
@@ -291,6 +299,8 @@ VoicePrint/
 19. **Why clause restructuring as Stage 2b (after paraphrase, before polish)?** — LLM paraphrasing changes vocabulary first, restructuring then alters sentence skeleton (counters GPTZero's Paraphraser Shield which exploits preserved syntax), and polish applies finishing touches (dysfluencies, fragments). Transformations compound across iterations. Research shows clause restructuring drops GPTZero scores ~35% (Cheng et al., NeurIPS 2025).
 
 20. **Why default restructure_probability 0.6?** — Tuned empirically: 0.4 was too conservative and left too many sentences with unmodified clause structure, reducing bypass effectiveness. 0.6 applies rules to ~60% of eligible sentences, balancing structural variety with content preservation.
+
+21. **Why a final `naturalize()` pass?** — Polish rules compound and can make text feel "forced" (too many dysfluencies, personal framings, fragments). The final pass detects over-application and prunes excess markers, so the output reads naturally while still bypassing detectors. It also merges very short fragments (<4 words) into adjacent sentences to avoid choppy rhythm.
 
 ---
 

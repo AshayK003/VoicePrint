@@ -636,6 +636,116 @@ def inject_opinion_framing(text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Naturalize — final pass that reduces "forced" humanization artifacts
+# while preserving genuine human voice. Runs as the last rule.
+# ---------------------------------------------------------------------------
+
+_NATURAL_DYSFLUENCY_MAX = 0.18  # Max fraction of sentences with dysfluency markers
+_NATURAL_NARRATIVE_MAX = 0.15   # Max fraction with personal narrative framing
+_NATURAL_DOUBT_MAX = 0.10       # Max fraction with self-doubt framing
+
+_DYSFLUENCY_LEADERS = [
+    "Well,", "I mean,", "You know,", "Actually,", "Honestly,",
+    "Basically,", "The thing is,", "Like,",
+]
+
+_NARRATIVE_LEADERS = [
+    "In my experience,", "I've found that", "What I've noticed is",
+    "From what I can tell,", "I remember when", "Personally,",
+    "If you ask me,",
+]
+
+_DOUBT_LEADERS = [
+    "I could be wrong", "I'm not entirely sure", "I think",
+    "Honestly, I'm not 100%", "From what I recall",
+    "I might be mixing this up",
+]
+
+
+@rule
+def naturalize(text: str) -> str:
+    """Tone down over-applied humanization artifacts.
+
+    Reduces excessive dysfluencies, personal framing, and self-doubt
+    markers so the text feels natural rather than forced. Handles
+    common restructure artifacts too.
+    """
+    _rng_nat = random.Random()
+    _rng_nat.seed(hashlib.md5(text.encode()).hexdigest())
+    sents = _split_sentences(text)
+    if len(sents) < 3:
+        return text
+
+    total = len(sents)
+    indicators = {"dysfluency": [], "narrative": [], "doubt": []}
+
+    for i, sent in enumerate(sents):
+        stripped = sent.strip()
+        first_word = stripped.split()[0] if stripped.split() else ""
+        # Dysfluency leaders
+        for m in _DYSFLUENCY_LEADERS:
+            if stripped.startswith(m):
+                indicators["dysfluency"].append(i)
+                break
+        # Narrative leaders
+        for m in _NARRATIVE_LEADERS:
+            if stripped.startswith(m):
+                indicators["narrative"].append(i)
+                break
+        # Doubt markers
+        for m in _DOUBT_LEADERS:
+            if m in stripped[:60]:
+                indicators["doubt"].append(i)
+                break
+
+    def _should_prune(indices: list[int], max_frac: float) -> set[int]:
+        limit = max(int(total * max_frac), 1)
+        if len(indices) <= limit:
+            return set()
+        prune_count = len(indices) - limit
+        return set(_rng_nat.sample(indices, prune_count))
+
+    prune_dysf = _should_prune(indicators["dysfluency"], _NATURAL_DYSFLUENCY_MAX)
+    prune_narr = _should_prune(indicators["narrative"], _NATURAL_NARRATIVE_MAX)
+    prune_doubt = _should_prune(indicators["doubt"], _NATURAL_DOUBT_MAX)
+    all_prune = prune_dysf | prune_narr | prune_doubt
+
+    if all_prune:
+        new_sents = []
+        for i, sent in enumerate(sents):
+            if i in all_prune:
+                stripped = sent.strip()
+                for m in _DYSFLUENCY_LEADERS + _NARRATIVE_LEADERS:
+                    if stripped.startswith(m):
+                        sent = sent[len(m):].lstrip()
+                        if sent and sent[0].islower():
+                            sent = sent[0].upper() + sent[1:]
+                        break
+            new_sents.append(sent)
+        text = " ".join(new_sents)
+
+    # Merge overly short fragments (< 4 words) into adjacent sentence
+    # if they follow a sentence and look like continuations
+    sents2 = _split_sentences(text)
+    merged = []
+    skip_next = False
+    for i, sent in enumerate(sents2):
+        if skip_next:
+            skip_next = False
+            continue
+        words = sent.split()
+        if (len(words) < 4 and i < len(sents2) - 1
+                and len(sents2[i + 1].split()) > 8):
+            merged.append(sent + " " + sents2[i + 1][0].lower() + sents2[i + 1][1:])
+            skip_next = True
+        else:
+            merged.append(sent)
+    text = " ".join(merged)
+
+    return text
+
+
+# ---------------------------------------------------------------------------
 # Varied sentence openers — break GPTZero's sentence-start pattern detection
 # ---------------------------------------------------------------------------
 

@@ -144,7 +144,7 @@ class Config:
     # Paraphrasing
     n_candidates: int = 2  # Best-of-N (increase for better evasion at cost of speed)
     similarity_threshold: float = 0.65  # Min cosine similarity to original (lower = more transformation allowed)
-    max_iterations: int = 4  # Max paraphrase→polish→detect retry cycles
+    max_iterations: int = 5  # Max paraphrase→polish→detect retry cycles
 
     # Detection
     # Clause restructuring

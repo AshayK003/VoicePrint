@@ -1,6 +1,6 @@
 # VoicePrint — AI Text Humanizer
 
-[![CI](https://github.com/AshayK003/VoicePrint/actions/workflows/ci.yml/badge.svg)](https://github.com/AshayK003/VoicePrint/actions/workflows/ci.yml) ![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue) ![tests 345/345](https://img.shields.io/badge/tests-345%2F345-green) ![license MIT](https://img.shields.io/badge/license-MIT-green)
+![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue) ![tests 345/345](https://img.shields.io/badge/tests-345%2F345-green) ![license MIT](https://img.shields.io/badge/license-MIT-green)
 
 Multi-stage pipeline that rewrites AI-generated text to bypass GPTZero, Turnitin, Originality.ai, and ZeroGPT. Combines heuristic rules, LLM paraphrasing, detection-feedback selection, and style polish in a single pass.
 
@@ -160,7 +160,6 @@ VoicePrint/
 ├── tests/                        # 345 tests, all mocked, no network
 ├── tools/
 │   └── analyze_banned_words.py
-├── .github/workflows/ci.yml      # Pytest on push/PR (3.11 + 3.12)
 ├── .streamlit/config.toml
 ├── pyproject.toml                # Ruff, pytest config
 ├── .env.example

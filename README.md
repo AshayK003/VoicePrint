@@ -37,7 +37,7 @@ Stage 2 is the only API-dependent step. Stages 1, 3, and 4 run locally with no n
 - **Post-paraphrase scrub** — LLM tends to re-introduce AI patterns (formal transitions, hedging). Scrub runs again after paraphrasing.
 - **Iterative retry loop** — if detection doesn't pass (p_ai < 0.5), pipeline retries up to N times, tracking the best result (tiebreak on higher perplexity).
 - **Similarity gate at 0.68** — prevents the LLM from drifting too far from original meaning. Below 0.68, text starts losing critical facts.
-- **Registry fallback (Windows)** — API key persisted to `HKCU\Environment\OPENCODE_API_KEY`. Resolution: explicit > env var > registry. `load_config()` does NOT mutate `os.environ` — avoids side effects.
+- **API key resolution** — checks env var, then config, then sidebar input. No side effects on `os.environ`.
 - **Dedicated per-function RNGs (polish.py)** — each rule seeds a private `random.Random()` from `hashlib.md5(text.encode())`. Same text always produces same output. No global seed contamination across tests.
 - **Shared `sentences()` utility** — 12 regex copies unified into `voiceprint/_text.py`. Single source of truth for sentence boundary splitting.
 - **Lazy torch/transformers imports in detect.py** — no import-time crash on Windows when torch DLL is unloadable.
@@ -102,6 +102,7 @@ print(pre["summary"])
 | `ANTHROPIC_API_KEY` | For Anthropic provider | — | Anthropic API key |
 | `VOICEPRINT_LLM_MODEL` | No | Provider default | Override the LLM model |
 | `VOICEPRINT_SIMILARITY_THRESHOLD` | No | `0.68` | Min cosine similarity to original |
+| `VOICEPRINT_HUMANIZER_MODEL` | No | `models/humanizer/mistral-7b-humanizer.gguf` | Path to GGUF model file |
 
 At least one API key must be set (either via env var, sidebar, or Windows registry). The UI auto-detects provider from the key prefix. OpenCode Zen keys (79 chars, `sk-`) are auto-detected by length > 60.
 
@@ -118,25 +119,30 @@ API key resolution priority: **explicit arg > env var > Windows registry** (`HKC
 
 ```
 VoicePrint/
-├── app.py                  # Streamlit frontend
+├── app.py                     # Streamlit frontend
 ├── voiceprint/
-│   ├── service.py          # Entry point: humanize(), detect()
-│   ├── pipeline.py         # Orchestrator: wires all stages + retry loop + PromptMemory
-│   ├── scrub.py            # Stage 1: heuristic rule engine (50+ AI-pattern rules)
-│   ├── paraphrase.py       # Stage 2: LLM API client + NINJA_PROMPTS + candidate selection
-│   ├── detect.py           # Stage 3: detection ensemble (stat + Binoculars + RoBERTa + perplexity)
-│   ├── polish.py           # Stage 4: style post-processing (dysfluency, narrative, etc.)
-│   ├── config.py           # Config dataclass, provider presets, env/registry, validation
-│   ├── metrics.py          # Burstiness, readability scoring
-│   ├── patterns.py         # AI-pattern fingerprint signals (15+ signals, optional pystylometry)
-│   ├── perplexity.py       # GPT-2 based perplexity scoring (lazy-loaded, 0-1 normalized)
-│   ├── memory.py           # PromptMemory — adaptive prompt_level feedback loop
-│   ├── similarity.py       # Semantic similarity (MiniLM / Jaccard fallback)
-│   └── _text.py            # Shared text utilities (sentences() splitter)
-├── tests/                  # 292 tests, all mocked (no API calls, no model downloads)
+│   ├── __init__.py            # Package entry, exports public API
+│   ├── service.py             # Entry point: humanize(), detect()
+│   ├── pipeline.py            # Orchestrator: wires all stages + retry loop + PromptMemory
+│   ├── scrub.py               # Stage 1: heuristic rule engine (50+ AI-pattern rules)
+│   ├── paraphrase.py          # Stage 2: LLM API client + NINJA_PROMPTS + candidate selection
+│   ├── detect.py              # Stage 3: detection ensemble (stat + Binoculars + RoBERTa + perplexity)
+│   ├── polish.py              # Stage 4: style post-processing (dysfluency, narrative, etc.)
+│   ├── restructure.py         # Stage 2b: syntactic clause restructuring via spaCy
+│   ├── config.py              # Config dataclass, provider presets, env/registry, validation
+│   ├── humanizer_model.py     # Phase 2: fine-tuned GGUF model inference (optional)
+│   ├── metrics.py             # Burstiness, readability scoring
+│   ├── patterns.py            # AI-pattern fingerprint signals (15+ signals, optional pystylometry)
+│   ├── perplexity.py          # GPT-2 based perplexity scoring (lazy-loaded, 0-1 normalized)
+│   ├── memory.py              # PromptMemory — adaptive prompt_level feedback loop
+│   ├── similarity.py          # Semantic similarity (MiniLM / Jaccard fallback)
+│   ├── _text.py               # Shared text utilities (sentences() splitter)
+│   └── static/
+│       └── style.css          # App stylesheet
+├── tests/                     # 345 tests, all mocked (no API calls, no model downloads)
 ├── tools/
 │   └── analyze_banned_words.py  # Dataset-based banned word analysis (gsingh1-py/train)
-├── .env.example            # Environment variable template
+├── .env.example               # Environment variable template
 └── requirements.txt
 ```
 
@@ -145,7 +151,7 @@ Layering is strict: `app.py` → `service.py` → `pipeline.py` → individual m
 ## Testing
 
 ```bash
-# Run all tests (292 total, ~15s)
+# Run all tests (345 total, ~20s)
 pytest tests/ -v
 
 # Run a specific module
@@ -158,8 +164,8 @@ pytest tests/ --cov=voiceprint
 ### Test strategy
 
 - No API calls — all LLM and detection calls are mocked via `unittest.mock`
-- No model downloads — `torch`, `transformers`, `sentence_transformers`, and `sklearn` are stubbed in `tests/conftest.py`
-- Tests cover: each scrub rule, pattern signal, paraphrase candidate flow, perplexity scoring, PromptMemory, pipeline retry logic, service validation, rate limiting, URL validation, XSS safety, and config edge cases
+- No model downloads — `torch`, `transformers`, `sentence_transformers`, `spaCy`, and `sklearn` are stubbed in `tests/conftest.py`
+- Tests cover: each scrub rule, pattern signal, paraphrase candidate flow, perplexity scoring, PromptMemory, pipeline retry logic, restructure rules, service validation, rate limiting, URL validation, XSS safety, and config edge cases
 - Perplexity tests skip model-dependent assertions when GPT-2 is unavailable; mock guard rejects stubs via `type(_MODEL).__module__`
 
 ### Adding tests
@@ -230,9 +236,9 @@ CMD ["streamlit", "run", "app.py"]
 
 1. Open an issue before starting work
 2. Follow the existing module structure — each stage is one file
-3. Keep modules under ~350 lines; split if growing larger
+3. Keep modules focused; split only when a clear maintenance boundary emerges
 4. Scrub rules follow the decorator pattern: `@rule` with `text: str → str` signature
-5. Run `pytest tests/ -v` before submitting — all 287 tests must pass
+5. Run `pytest tests/ -v` before submitting — all 345 tests must pass
 6. Add tests for new functionality; remove tests only when removing dead code
 
 ### Code of conduct

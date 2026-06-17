@@ -154,7 +154,13 @@ def replace_transitions(text: str) -> str:
 
 @rule
 def break_tricolons(text: str) -> str:
-    """Break the AI-favorite 'X, Y, and Z' pattern (single-word items)."""
+    """Break the AI-favorite 'X, Y, and Z' pattern (single-word items only).
+
+    Known limitation: multi-word items (e.g. 'fast, reliable, lifetime access')
+    are not matched. Multi-word tricolons are ambiguous with regex alone and
+    the heuristic is intentionally conservative — no match is safer than a
+    wrong match.
+    """
     pattern = r"(\b\w+\b),\s+(\b\w+\b),\s+and\s+(\b\w+\b)"
     return re.sub(pattern, r"\1 and \2", text)
 
@@ -280,6 +286,15 @@ HEDGES: list[str] = [
     r"\bbroadly speaking\b",
     r"\bmore often than not\b",
     r"\bfor the most part\b",
+    r"\bkind of\b",
+    r"\bsort of\b",
+    r"\bbasically\b",
+    r"\bessentially\b",
+    r"\bperhaps\b",
+    r"\bpretty\b",
+    r"\blargely\b",
+    r"\brelatively\b",
+    r"\ba bit\b",
 ]
 
 

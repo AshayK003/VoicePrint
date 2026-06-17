@@ -39,6 +39,11 @@ PROVIDER_PRESETS: dict[str, dict[str, str]] = {
         "base_url": "https://opencode.ai/zen/v1",
         "env_key": "OPENCODE_API_KEY",
     },
+    "Lightning AI": {
+        "model": "openai/gpt-4o-mini",
+        "base_url": "https://lightning.ai/api/v1",
+        "env_key": "LIGHTNING_API_KEY",
+    },
     "Custom (OpenAI-compatible)": {
         "model": "",
         "base_url": "",
@@ -94,6 +99,17 @@ PROVIDER_MODELS: dict[str, list[str]] = {
         "openai/deepseek-v3-0615-free",
         "openai/qwen-3-235b-a22b-free",
     ],
+    "Lightning AI": [
+        "openai/gpt-4o-mini",
+        "openai/gpt-4o",
+        "openai/gpt-5",
+        "anthropic/claude-3-5-sonnet-20241022",
+        "google/gemini-2.0-flash",
+        "google/gemini-2.5-flash",
+        "mistral/mixtral-8x22b",
+        "meta-llama/llama-3.1-70b",
+        "deepseek/deepseek-chat",
+    ],
     "Custom (OpenAI-compatible)": [
         "",
     ],
@@ -122,6 +138,9 @@ PROVIDER_BASE_URLS: dict[str, list[str]] = {
         "(default)",
     ],
     "OpenCode Zen": [
+        "(default)",
+    ],
+    "Lightning AI": [
         "(default)",
     ],
     "Custom (OpenAI-compatible)": [
@@ -157,6 +176,9 @@ class Config:
     detection_threshold: float = 0.5  # Below this = "human"
     use_models: bool = True  # False = skip all model loading, use heuristics only
 
+    # Trained model (Phase 2 — fine-tuned on AI→Human style transfer)
+    trained_model_path: str = ""  # Path to GGUF file; "" = use default
+
     def __post_init__(self) -> None:
         """No automatic env/registry fallback here.
         That is handled by build_config() and load_config() explicitly.
@@ -189,6 +211,10 @@ def load_config() -> Config:
     if not config.api_key:
         config.api_key = _read_registry_env("OPENCODE_API_KEY")
 
+    # Trained model path from env var
+    if model_path := os.getenv("VOICEPRINT_HUMANIZER_MODEL"):
+        config.trained_model_path = model_path
+
     return config
 
 
@@ -215,6 +241,8 @@ def detect_provider_from_key(api_key: str) -> dict[str, str] | None:
         provider_name = "Mistral (Free)"
     elif key.startswith("opc-") or key.startswith("oc-"):
         provider_name = "OpenCode Zen"
+    elif key.startswith("sk-lit-"):
+        provider_name = "Lightning AI"
     elif key.startswith("sk-"):
         # OpenAI keys are typically sk-... with ~51 chars
         # OpenCode Zen uses longer keys when behind opencodedotai prefix

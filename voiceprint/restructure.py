@@ -9,7 +9,7 @@ import hashlib
 import logging
 import random
 import re
-from typing import Callable
+from typing import Any, Callable
 
 from ._text import sentences as _split_sentences
 
@@ -34,7 +34,7 @@ def rule(func: Callable[[str], str]) -> Callable[[str], str]:
 _nlp = None
 
 
-def _get_nlp():
+def _get_nlp() -> Any | None:
     global _nlp
     if _nlp is not None:
         return _nlp if _nlp is not False else None

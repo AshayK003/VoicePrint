@@ -12,7 +12,6 @@ class TestBurstinessGate:
         config.max_iterations = 3
         config.similarity_min = 0.55
         config.ensemble = MagicMock()
-        config.style_scorer_path = None
         config.n_candidates = 3
         config.provider = "test"
         config.model = "test"
@@ -57,7 +56,6 @@ class TestBurstinessGate:
         config.max_iterations = 2
         config.similarity_min = 0.55
         config.ensemble = MagicMock()
-        config.style_scorer_path = None
         config.n_candidates = 3
         config.provider = "test"
         config.model = "test"
@@ -99,7 +97,6 @@ class TestBurstinessGate:
         config.max_iterations = 2
         config.similarity_min = 0.55
         config.ensemble = MagicMock()
-        config.style_scorer_path = None
         config.n_candidates = 3
         config.provider = "test"
         config.model = "test"

@@ -9,18 +9,15 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import TYPE_CHECKING
+from typing import Any
 
 from .config import Config, load_config
-
-if TYPE_CHECKING:
-    pass
 
 # Module-level cache for sentence-transformer model
 _model = None
 
 
-def _get_model():
+def _get_model() -> Any | None:
     """Lazy-load the sentence transformer model. Thread-safe, loaded once."""
     global _model
     if _model is None:
@@ -34,7 +31,6 @@ def _get_model():
 
 
 def _tokenize(text: str) -> list[str]:
-    """Split text into lowercase word tokens."""
     return re.findall(r"\w+", text.lower())
 
 

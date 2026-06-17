@@ -192,8 +192,8 @@ class BinocularsDetector:
         for name in (_BINOCULARS_MODEL_A, _BINOCULARS_MODEL_B):
             if name not in _binoculars_cache:
                 if name == _BINOCULARS_MODEL_A:
-                    from .perplexity import _get_gpt2
-                    model, tok = _get_gpt2()
+                    from .perplexity import get_gpt2
+                    model, tok = get_gpt2()
                     if model is not None:
                         _binoculars_cache[name] = (tok, model)
                         continue

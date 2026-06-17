@@ -76,7 +76,7 @@ def perplexity_score(text: str) -> float | None:
         return None
 
 
-def _get_gpt2():
+def get_gpt2() -> tuple[Any, Any] | tuple[None, None]:
     """Return globally cached GPT-2 model and tokenizer, or (None, None).
 
     Used by BinocularsDetector to avoid loading GPT-2 twice.

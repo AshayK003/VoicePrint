@@ -22,7 +22,6 @@ from .similarity import check_similarity
 from .metrics import burstiness, burstiness_report, readability_scores
 from .patterns import pattern_score, compute_all_signals
 from .memory import PromptMemory
-from .style_scorer import StyleScorer
 
 
 # ---------------------------------------------------------------------------
@@ -55,19 +54,6 @@ class HumanizePipeline:
     def __init__(self, config: Config | None = None):
         self.config = config or load_config()
         self.ensemble = DetectorEnsemble(self.config)
-        self._style_scorer: StyleScorer | None = None
-
-    @property
-    def style_scorer(self) -> StyleScorer | None:
-        """Lazy-loaded style scorer. Returns None if model not found."""
-        if self._style_scorer is None:
-            try:
-                s = StyleScorer()
-                if s.is_loaded():
-                    self._style_scorer = s
-            except Exception:
-                pass
-        return self._style_scorer
 
     def run(
         self,
@@ -154,7 +140,7 @@ class HumanizePipeline:
                     )
                     if candidates:
                         _report(0.65, f"Stage 2: Selecting best candidate{iter_label}...")
-                        current, _sim = select_best(current, candidates, self.config, style_scorer=self.style_scorer)
+                        current, _sim = select_best(current, candidates, self.config)
                         if "paraphrase" not in stages:
                             stages.append("paraphrase")
                         # Post-paraphrase scrub: LLM re-introduces AI patterns

@@ -28,5 +28,8 @@ pystylometry>=1.4
 # Clause restructuring (syntactic parsing)
 spacy>=3.8
 
+# GGUF model inference (Phase 2 — fine-tuned CPU model)
+llama-cpp-python>=0.3
+
 # Testing
 pytest>=7.0

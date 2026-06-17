@@ -500,11 +500,9 @@ def select_best(
             detection = detector.detect(candidate)
             p_ai = detection.p_ai
         except Exception:
-            p_ai = 0.5
+            continue
 
-        effective_pai = p_ai
-
-        if effective_pai < best_pai:
+        if p_ai < best_pai:
             best = candidate
             best_pai = p_ai  # Store real p_ai (not effective) for display
             best_sim = sim

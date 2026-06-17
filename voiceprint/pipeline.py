@@ -140,7 +140,7 @@ class HumanizePipeline:
                     )
                     if candidates:
                         _report(0.65, f"Stage 2: Selecting best candidate{iter_label}...")
-                        current, _sim = select_best(current, candidates, self.config)
+                        current, _sim = select_best(current, candidates, self.config, detector=self.ensemble)
                         if "paraphrase" not in stages:
                             stages.append("paraphrase")
                         # Post-paraphrase scrub: LLM re-introduces AI patterns
@@ -253,12 +253,7 @@ class HumanizePipeline:
         def _compute_perplexity():
             try:
                 from .perplexity import raw_perplexity
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ppl:
-                    f = ppl.submit(raw_perplexity, best_text)
-                    return f.result(timeout=40)
-            except concurrent.futures.TimeoutError:
-                return None
+                return raw_perplexity(best_text)
             except Exception:
                 return None
 

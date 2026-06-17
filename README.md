@@ -42,6 +42,8 @@ Stage 2 is the only API-dependent step. Stages 1, 3, and 4 run locally with no n
 - **API key resolution** — checks env var, then config, then sidebar input. No side effects on `os.environ`.
 - **Dedicated per-function RNGs (polish.py)** — each rule seeds a private `random.Random()` from `hashlib.md5(text.encode())`. Same text always produces same output. No global seed contamination across tests.
 - **Shared `sentences()` utility** — unified into `voiceprint/_text.py` via pysbd (rule-based, handles abbreviations like `Dr.`, `U.S.`, `e.g.`). Single source of truth for sentence boundary splitting.
+- **Skip-on-fail detection selection** — when `select_best` runs detection on top candidates and a detector raises (model error, OOM), the failed candidate is skipped entirely via `continue` rather than assigned a neutral `p_ai=0.5` score. This prevents error artifacts from being selected as "best." Fallback to similarity-based selection when all detections fail.
+- **Pipeline reuses detector** — `HumanizePipeline.ensemble` is passed to `select_best()` as the `detector` parameter instead of creating a new `DetectorEnsemble` per iteration. Models are cached at module level regardless, but this avoids redundant object overhead across the retry loop.
 - **Lazy torch/transformers imports in detect.py** — all heavy ML deps loaded inside functions, not at module level. ImportError wrappers raise friendly install hints instead of cryptic "No module named" errors. `requirements.txt` keeps only core deps for fast Streamlit Cloud deploys.
 
 ## Setup

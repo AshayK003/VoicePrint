@@ -44,6 +44,23 @@ st.markdown(_load_css(), unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------
+# Env key checker — cached at module level to avoid redefinition on every rerun
+# ---------------------------------------------------------------------------
+
+@st.cache_data
+def _check_env_key(env_key_name: str) -> bool:
+    import os
+    if os.getenv(env_key_name):
+        return True
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
+            return bool(winreg.QueryValueEx(key, env_key_name)[0])
+    except Exception:
+        return False
+
+
+# ---------------------------------------------------------------------------
 # Sidebar — Provider & API Configuration
 # ---------------------------------------------------------------------------
 
@@ -152,18 +169,6 @@ with st.sidebar:
     st.session_state.base_url = base_url
 
     # Provider status — inline badge
-    @st.cache_data
-    def _check_env_key(env_key_name: str) -> bool:
-        import os
-        if os.getenv(env_key_name):
-            return True
-        try:
-            import winreg
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment") as key:
-                return bool(winreg.QueryValueEx(key, env_key_name)[0])
-        except Exception:
-            return False
-
     env_key_name = preset.get("env_key", "")
     has_env_key = _check_env_key(env_key_name) if env_key_name else False
     has_manual_key = bool(api_key)

@@ -112,7 +112,7 @@ def signal_hedging(text: str) -> float:
         "on a broader scale", "from a holistic perspective",
         "a wide range of", "a dynamic interplay",
         "at the core of", "in today's",
-        "in this day and age", "when it comes to",
+        "when it comes to",
         "in terms of", "due to the fact",
         "for all intents and purposes",
     ]

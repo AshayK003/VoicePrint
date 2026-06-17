@@ -1,5 +1,7 @@
 # VoicePrint — AI Text Humanizer
 
+[![CI](https://github.com/AshayK003/VoicePrint/actions/workflows/ci.yml/badge.svg)](https://github.com/AshayK003/VoicePrint/actions/workflows/ci.yml)
+
 Multi-stage pipeline that transforms AI-generated text into human-like writing that bypasses GPTZero, Turnitin, Originality.ai, and ZeroGPT.
 
 Research shows a multi-stage pipeline is 2.3x more effective than any single technique. VoicePrint combines heuristic rules, LLM paraphrasing, detection-feedback selection, and style polish in a single pass.
@@ -139,6 +141,10 @@ VoicePrint/
 │   ├── _text.py               # Shared text utilities (sentences() splitter)
 │   └── static/
 │       └── style.css          # App stylesheet
+├── .github/
+│   └── workflows/
+│       └── ci.yml                # CI: pytest on push/PR (3.11 + 3.12), Ruff lint
+├── pyproject.toml                 # Project config (Ruff, pytest)
 ├── tests/                     # 345 tests, all mocked (no API calls, no model downloads)
 ├── tools/
 │   └── analyze_banned_words.py  # Dataset-based banned word analysis (gsingh1-py/train)

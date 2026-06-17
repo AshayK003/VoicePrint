@@ -37,7 +37,6 @@ section[data-testid="stSidebar"] {
     background: var(--vp-bg-card) !important;
     border-right: 1px solid var(--vp-border) !important;
 }
-section[data-testid="stSidebar"] .st-emotion-cache-6qob1r { background: var(--vp-bg-card) !important; }
 section[data-testid="stSidebar"] hr { border-color: var(--vp-border) !important; }
 
 /* Inputs — text, textarea, select, slider */
@@ -251,13 +250,6 @@ section[data-testid="stSidebar"] [data-testid="stMarkdown"] strong {
     border: 1px solid var(--vp-border); color: var(--vp-text);
 }
 
-/* ── Metric context ─────────────────────────────────────────── */
-
-.vp-metric-context {
-    font-size: 11px; color: var(--vp-text-muted);
-    margin-top: 2px; line-height: 1.4;
-}
-
 /* ── Copy button ────────────────────────────────────────────── */
 
 .vp-copy-btn {
@@ -309,11 +301,53 @@ section[data-testid="stSidebar"] [data-testid="stMarkdown"] strong {
     background: var(--vp-bg-card);
 }
 
+/* ── Output card ─────────────────────────────────────────────── */
+
+.vp-output-card {
+    min-height: 270px; max-height: 400px; overflow-y: auto;
+    font-size: 14px; line-height: 1.7; white-space: pre-wrap;
+}
+
+/* ── Section header row ──────────────────────────────────────── */
+
+.vp-section-header {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 8px;
+}
+.vp-section-header span:first-child {
+    font-size: 14px; font-weight: 600;
+}
+
+/* ── Spacer ───────────────────────────────────────────────────── */
+
+.vp-spacer {
+    margin-top: 16px; margin-bottom: 16px;
+}
+
+/* ── Keyboard hint ───────────────────────────────────────────── */
+
+.vp-keyboard-hint {
+    padding-top: 10px; text-align: center;
+    color: var(--vp-text-muted); font-size: 12px;
+}
+
+/* ── Sidebar tip box ─────────────────────────────────────────── */
+
+.vp-sidebar-tip {
+    font-size: 11px; margin-top: 4px;
+    padding: 6px 10px;
+    background: var(--vp-bg-surface);
+    border-radius: 6px; line-height: 1.5;
+    color: var(--vp-text-muted);
+    font-family: var(--vp-font-sans);
+}
+
 /* ── Responsive ──────────────────────────────────────────────── */
 
 @media (max-width: 768px) {
     .stColumns > div { min-width: 100% !important; flex-basis: 100% !important; }
     .vp-diff-container { flex-direction: column; }
+    .vp-section-header { flex-wrap: wrap; }
 }
 
 /* ── Focus visible ───────────────────────────────────────────── */

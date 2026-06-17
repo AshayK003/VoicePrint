@@ -66,9 +66,6 @@ def _check_env_key(env_key_name: str) -> bool:
 
 with st.sidebar:
     st.markdown("### VoicePrint")
-    st.caption("AI Text Humanizer v0.1.0")
-
-    st.divider()
 
     # --- Provider section ---
     st.markdown("**LLM Provider**")
@@ -252,10 +249,7 @@ with st.sidebar:
     if tip:
         lines = tip.replace("\n", "<br>")
         st.markdown(
-            f'<div style="font-size:11px;margin-top:4px;'
-            f'padding:6px 10px;background:var(--vp-bg-surface);border-radius:6px;line-height:1.5;'
-            f'color:var(--vp-text-muted);font-family:var(--vp-font-sans);">'
-            f'Recommended models:<br>{lines}</div>',
+            f'<div class="vp-sidebar-tip">Recommended models:<br>{lines}</div>',
             unsafe_allow_html=True,
         )
 
@@ -480,7 +474,7 @@ with col_btn:
     )
 with col_shortcut:
     st.markdown(
-        '<div style="padding-top:10px;text-align:center;color:var(--vp-text-muted);font-size:12px">'
+        '<div class="vp-keyboard-hint">'
         '<kbd class="vp-kbd">Ctrl</kbd> + <kbd class="vp-kbd">Enter</kbd>'
         '</div>',
         unsafe_allow_html=True,
@@ -597,9 +591,7 @@ if result:
             )
 
         st.markdown(
-            f'<div class="vp-card" style="min-height:270px;max-height:400px;overflow-y:auto;'
-            f'font-size:14px;line-height:1.7;white-space:pre-wrap;">'
-            f'{result.text}</div>',
+            f'<div class="vp-card vp-output-card">{result.text}</div>',
             unsafe_allow_html=True,
         )
 
@@ -612,28 +604,27 @@ if result:
                 unsafe_allow_html=True,
             )
 
-    # Paraphrase status badge
-    has_llm = "paraphrase" in (result.stages or [])
-    if has_llm:
-        st.markdown(
-            '<div class="vp-badge vp-badge-success">Paraphrase: Applied</div>',
-            unsafe_allow_html=True,
-        )
-    else:
-        st.markdown(
-            '<div class="vp-badge vp-badge-warning">Paraphrase: Skipped (no LLM)</div>',
-            unsafe_allow_html=True,
-        )
+        has_llm = "paraphrase" in (result.stages or [])
+        if has_llm:
+            st.markdown(
+                '<div class="vp-badge vp-badge-success">Paraphrase: Applied</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                '<div class="vp-badge vp-badge-warning">Paraphrase: Skipped (no LLM)</div>',
+                unsafe_allow_html=True,
+            )
 
-    st.markdown("<div style='margin-top:16px;margin-bottom:16px;'></div>", unsafe_allow_html=True)
+    st.markdown('<div class="vp-spacer"></div>', unsafe_allow_html=True)
 
     method_tag = (
         "Statistical" if "statistical" in result.detection_summary
         else "Model"
     )
     st.markdown(
-        f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
-        f'<span style="font-size:14px;font-weight:600;">Detection Scores</span>'
+        f'<div class="vp-section-header">'
+        f'<span>Detection Scores</span>'
         f'<span class="vp-badge vp-badge-success">{method_tag}</span></div>',
         unsafe_allow_html=True,
     )
@@ -744,7 +735,6 @@ if result:
             st.markdown(f"- {s}")
 
     # --- Download row ---
-    st.divider()
     dl1, dl2 = st.columns(2)
     with dl1:
         st.download_button(

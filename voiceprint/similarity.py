@@ -62,7 +62,11 @@ def compute_similarity(
     if not use_models:
         return _jaccard_similarity(text_a, text_b)
 
-    from sklearn.metrics.pairwise import cosine_similarity
+    try:
+        from sklearn.metrics.pairwise import cosine_similarity
+    except ImportError:
+        # sklearn not installed — fall back to Jaccard
+        return _jaccard_similarity(text_a, text_b)
     model = _get_model()
     if model is None:
         # Model failed to load, fallback to Jaccard

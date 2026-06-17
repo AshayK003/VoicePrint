@@ -1,5 +1,7 @@
 # VoicePrint — AI Text Humanizer
-# All dependencies are MIT/Apache-2.0 licensed
+# Core deps only. Heavy ML packages (torch, transformers, etc.) are lazy-loaded
+# at runtime and only needed for model-based detection. They can be installed
+# separately via: pip install voiceprint[full]
 
 # Frontend
 streamlit>=1.35
@@ -7,29 +9,11 @@ streamlit>=1.35
 # LLM API client (unified interface for OpenAI, Gemini, Groq, etc.)
 litellm>=1.40
 
-# AI-text detection models
-transformers>=4.40
-torch>=2.0
-
-# Semantic similarity
-sentence-transformers>=3.0
-scikit-learn>=1.3
-
 # Readability metrics
 textstat>=0.7
 
-# Math & tokenization
+# Math — used eagerly in metrics.py and patterns.py
 numpy>=1.24
-nltk>=3.8
-
-# Stylometric lexical diversity metrics (optional, enhances AI-detection signals)
-pystylometry>=1.4
-
-# Clause restructuring (syntactic parsing)
-spacy>=3.8
-
-# GGUF model inference (Phase 2 — fine-tuned CPU model)
-llama-cpp-python>=0.3
 
 # Testing
 pytest>=7.0

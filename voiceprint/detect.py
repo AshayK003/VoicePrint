@@ -115,7 +115,13 @@ class RoBERTaDetector:
         if device:
             self.device = device
         else:
-            import torch
+            try:
+                import torch
+            except ImportError:
+                raise ImportError(
+                    "torch is required for model-based detection. "
+                    "Install optional deps: pip install torch transformers"
+                )
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self._loaded = False
 
@@ -126,8 +132,14 @@ class RoBERTaDetector:
             self.tokenizer = _tokenizer_cache[self.model_name]
             self.model = _classifier_cache[self.model_name]
         else:
-            from transformers import AutoTokenizer, AutoModelForSequenceClassification
-            import torch  # noqa: F401 — ensures torch is importable before model loads
+            try:
+                from transformers import AutoTokenizer, AutoModelForSequenceClassification
+                import torch  # noqa: F401 — ensures torch is importable before model loads
+            except ImportError:
+                raise ImportError(
+                    "transformers and torch are required for model-based detection. "
+                    "Install optional deps: pip install torch transformers"
+                )
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
             self.model = AutoModelForSequenceClassification.from_pretrained(
                 self.model_name
@@ -140,8 +152,14 @@ class RoBERTaDetector:
     def detect(self, text: str) -> DetectionResult:
         """Run detection on a single text."""
         self._load()
-        import torch
-        import torch.nn.functional as F
+        try:
+            import torch
+            import torch.nn.functional as F
+        except ImportError:
+            raise ImportError(
+                "torch is required for model-based detection. "
+                "Install optional deps: pip install torch transformers"
+            )
 
         inputs = self.tokenizer(
             text,
@@ -181,14 +199,26 @@ class BinocularsDetector:
         if device:
             self.device = device
         else:
-            import torch
+            try:
+                import torch
+            except ImportError:
+                raise ImportError(
+                    "torch is required for model-based detection. "
+                    "Install optional deps: pip install torch transformers"
+                )
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self._loaded = False
 
     def _load(self):
         if self._loaded:
             return
-        import torch  # noqa: F401
+        try:
+            import torch  # noqa: F401
+        except ImportError:
+            raise ImportError(
+                "torch is required for model-based detection. "
+                "Install optional deps: pip install torch transformers"
+            )
         for name in (_BINOCULARS_MODEL_A, _BINOCULARS_MODEL_B):
             if name not in _binoculars_cache:
                 if name == _BINOCULARS_MODEL_A:
@@ -197,7 +227,13 @@ class BinocularsDetector:
                     if model is not None:
                         _binoculars_cache[name] = (tok, model)
                         continue
-                from transformers import AutoTokenizer, AutoModelForCausalLM
+                try:
+                    from transformers import AutoTokenizer, AutoModelForCausalLM
+                except ImportError:
+                    raise ImportError(
+                        "transformers is required for model-based detection. "
+                        "Install optional deps: pip install torch transformers"
+                    )
                 tok = AutoTokenizer.from_pretrained(name)
                 mod = AutoModelForCausalLM.from_pretrained(name).to(self.device)
                 mod.eval()
@@ -205,7 +241,13 @@ class BinocularsDetector:
         self._loaded = True
 
     def _perplexity(self, text: str, model_name: str) -> float:
-        import torch
+        try:
+            import torch
+        except ImportError:
+            raise ImportError(
+                "torch is required for model-based detection. "
+                "Install optional deps: pip install torch transformers"
+            )
         tok, mod = _binoculars_cache[model_name]
         inputs = tok(text, return_tensors="pt", truncation=True, max_length=512).to(self.device)
         with torch.no_grad():

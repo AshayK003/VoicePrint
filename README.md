@@ -42,7 +42,7 @@ Stage 2 is the only API-dependent step. Stages 1, 3, and 4 run locally with no n
 - **API key resolution** — checks env var, then config, then sidebar input. No side effects on `os.environ`.
 - **Dedicated per-function RNGs (polish.py)** — each rule seeds a private `random.Random()` from `hashlib.md5(text.encode())`. Same text always produces same output. No global seed contamination across tests.
 - **Shared `sentences()` utility** — 12 regex copies unified into `voiceprint/_text.py`. Single source of truth for sentence boundary splitting.
-- **Lazy torch/transformers imports in detect.py** — no import-time crash on Windows when torch DLL is unloadable.
+- **Lazy torch/transformers imports in detect.py** — all heavy ML deps loaded inside functions, not at module level. ImportError wrappers raise friendly install hints instead of cryptic "No module named" errors. `requirements.txt` keeps only core deps for fast Streamlit Cloud deploys.
 
 ## Setup
 
@@ -57,7 +57,12 @@ Stage 2 is the only API-dependent step. Stages 1, 3, and 4 run locally with no n
 ```bash
 git clone <repo-url> && cd VoicePrint
 pip install -r requirements.txt
-python -m nltk.downloader punkt tabulate
+```
+
+Optional ML packages (torch, transformers, etc.) for model-based detection are lazy-loaded. Install on-demand:
+
+```bash
+pip install torch transformers sentence-transformers scikit-learn spacy
 ```
 
 ### Configure
@@ -144,6 +149,8 @@ VoicePrint/
 ├── .github/
 │   └── workflows/
 │       └── ci.yml                # CI: pytest on push/PR (3.11 + 3.12), Ruff lint
+├── .streamlit/
+│   └── config.toml               # Streamlit Cloud: theme, fast reruns, cold-start config
 ├── pyproject.toml                 # Project config (Ruff, pytest)
 ├── tests/                     # 345 tests, all mocked (no API calls, no model downloads)
 ├── tools/
@@ -198,13 +205,15 @@ def test_my_feature(self, mock_completion):
 OPENCODE_API_KEY = "your-key"
 ```
 
+Cold start is ~10s faster than before — `requirements.txt` now contains only lightweight core deps (streamlit, litellm, textstat, numpy). Heavy ML packages (torch, transformers, etc.) install on first model-based detection use instead of on every deploy.
+
 ### Docker
 
 ```dockerfile
 FROM python:3.12-slim
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install -r requirements.txt && python -m nltk.downloader punkt tabulate
+RUN pip install -r requirements.txt
 COPY . .
 EXPOSE 8501
 CMD ["streamlit", "run", "app.py"]

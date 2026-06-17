@@ -1,70 +1,77 @@
 # VoicePrint — AI Text Humanizer
 
-[![CI](https://github.com/AshayK003/VoicePrint/actions/workflows/ci.yml/badge.svg)](https://github.com/AshayK003/VoicePrint/actions/workflows/ci.yml)
+[![CI](https://github.com/AshayK003/VoicePrint/actions/workflows/ci.yml/badge.svg)](https://github.com/AshayK003/VoicePrint/actions/workflows/ci.yml) ![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue) ![tests 345/345](https://img.shields.io/badge/tests-345%2F345-green) ![license MIT](https://img.shields.io/badge/license-MIT-green)
 
-Multi-stage pipeline that transforms AI-generated text into human-like writing that bypasses GPTZero, Turnitin, Originality.ai, and ZeroGPT.
+Multi-stage pipeline that rewrites AI-generated text to bypass GPTZero, Turnitin, Originality.ai, and ZeroGPT. Combines heuristic rules, LLM paraphrasing, detection-feedback selection, and style polish in a single pass.
 
-Research shows a multi-stage pipeline is 2.3x more effective than any single technique. VoicePrint combines heuristic rules, LLM paraphrasing, detection-feedback selection, and style polish in a single pass.
+A multi-stage approach is **2.3x more effective** than any single humanization technique. Stage 2 (paraphrasing) is the only API-dependent step — stages 1, 3, and 4 run locally with zero network calls.
 
-## How it works
+---
+
+## Architecture
 
 ```
-Input (AI text) → Scrub → Paraphrase (LLM) → Polish → Detect → Output + scores
-                    |          |               |         |
-                    stage 1    stage 2         stage 4   stage 3
+Input (AI text) → Scrub → Paraphrase (LLM) → Restructure → Polish → Detect → Output + metrics
+                   │           │                │            │        │
+                 stage 1     stage 2          stage 2b     stage 4  stage 3
 ```
 
-| Stage | What | Cost |
-|-------|------|------|
-| 1. Heuristic Scrub | Replaces AI phrases, forces burstiness, injects contractions, breaks tricolons, removes hedging | Free (pure Python) |
-| 2. Adversarial Paraphrasing | LLM generates N candidates with persona-based prompts (explain-to-friend, blog, Reddit). Detection-guided feedback escalates tone per retry | API call |
-| 3. Detection Scoring | Statistical pre-filter + perplexity scoring + optional RoBERTa ensemble. Selects lowest-AI candidate | Free (local models) |
-| 4. Style Polish | Dysfluency injection, personal narrative, formal→casual conversion, vocabulary variety, passive→active | Free (pure Python) |
+| Stage | File | What it does | Cost |
+|-------|------|-------------|------|
+| 1. Scrub | `scrub.py` | Replaces 130+ AI-favorite phrases, forces burstiness, injects contractions, breaks tricolons, removes hedging | Pure Python, free |
+| 2. Paraphrase | `paraphrase.py` | LLM generates N candidates using escalation prompts. Detection-guided feedback adapts tone per retry. Selects lowest-AI candidate via detection ensemble | API call |
+| 2b. Restructure | `restructure.py` | Syntactic clause transformations via spaCy — front/back subclause swaps, appositive extraction, compound splits | spaCy (local) |
+| 3. Detect | `detect.py` | 3-tier ensemble: statistical pre-filter (instant) → perplexity (GPT-2) → RoBERTa classifiers. Skips model loading for clear human/AI text | Local ML (~4GB) |
+| 4. Polish | `polish.py` | Dysfluency injection, personal narrative, formal→casual conversion, vocabulary variety, passive→active | Pure Python, free |
 
-Stage 2 is the only API-dependent step. Stages 1, 3, and 4 run locally with no network calls.
+### Detection decision tree
 
-### Detection tiers
+```
+Statistical pre-filter (burstiness + pattern signals)
+  ├─ p_ai < 0.20 → clear human → return stat result (no models loaded)
+  ├─ p_ai > 0.80 → clear AI    → return stat result (no models loaded)
+  └─ 0.20–0.80  → ambiguous    → run GPT-2 perplexity + RoBERTa ensemble
+                                   ├─ Binoculars zero-shot (weight 0.30)
+                                   └─ 2× RoBERTa classifiers (weight 0.70)
+```
 
-- **Statistical pre-filter** (instant) — burstiness + pattern signals. Skips model loading for clear human/AI text.
-- **Perplexity scoring** (fast, ~500MB GPT-2 cached) — measures how predictable text is. Human-like text: ~26 perplexity, AI-generated: ~138 perplexity. Normalized to 0-1 score.
-- **RoBERTa ensemble** (heavy, ~1.9GB) — two fine-tuned classifiers in parallel. Only loads when statistical pre-filter returns ambiguous.
+### Key design decisions
 
-### Design decisions
+- **Scrub runs twice** — once before the LLM (removes easy surface-level tells), once after (LLM re-introduces formal transitions). The LLM focuses on structural transformation, not vocabulary swaps.
+- **Persona-based prompts, not detection-avoidance** — models are good at "sound like a person explaining this" (in their training data) and bad at "avoid pattern X" (abstract goal). 8 escalation levels, each targeting specific GPTZero signals.
+- **Best-of-N with perplexity gate** — generate N candidates, reject perplexity < 30 (too predictable = AI-like), detect the top 3, pick lowest p_ai. Adds 5–15% evasion rate over single-pass.
+- **Detection-guided refinement** — previous p_ai is injected into the next paraphrase prompt as feedback. Score < 0.3 → minor polish, 0.3–0.6 → push harder, ≥ 0.6 → rewrite from scratch.
+- **PromptMemory** — tracks which prompt levels produce the lowest p_ai per session. Biases future selections toward what worked. No persistence across sessions.
+- **Similarity gate at 0.68** — prevents the LLM from drifting too far. Below 0.68, text starts losing critical facts. Fallback: Jaccard word overlap when MiniLM is unavailable.
+- **Per-function deterministic RNGs** — each polish/scrub rule seeds a private `random.Random()` from `hashlib.md5(text.encode())`. Same input always produces the same output. No global seed contamination.
+- **Skip-on-fail detection** — when a detector raises (OOM, model error), the failed candidate is skipped, not assigned a neutral score. Fallback to similarity ranking when all detections fail.
+- **Lazy model loading** — all heavy ML deps (torch, transformers, sentence-transformers) import inside functions, not at module level. `requirements.txt` keeps only core deps for fast cold starts.
 
-- **Deterministic scrub before LLM paraphrase** — removes easy-to-fix surface-level AI tells so the LLM focuses on structural transformation instead.
-- **Persona-based prompts** (not detection-avoidance) — models are good at "sound like a person explaining this" (training data) and bad at "avoid pattern X" (abstract goal). Three escalation levels: conversational, blog-style, casual/raw.
-- **Best-of-N sampling** — generate N candidates, reject those with perplexity < 30 (too predictable = AI-like), pick the lowest detection score. Adds 5–15% evasion rate.
-- **Detection-guided iterative refinement** — prev_p_ai feedback injected into next paraphrase prompt. Score < 0.3 → minor polish, 0.3-0.6 → push harder, ≥ 0.6 → rewrite from scratch.
-- **PromptMemory adaptive feedback loop** — tracks which prompt levels produce lowest p_ai per session. Biases future selections toward what worked.
-- **Post-paraphrase scrub** — LLM tends to re-introduce AI patterns (formal transitions, hedging). Scrub runs again after paraphrasing.
-- **Iterative retry loop** — if detection doesn't pass (p_ai < 0.5), pipeline retries up to N times, tracking the best result (tiebreak on higher perplexity).
-- **Similarity gate at 0.68** — prevents the LLM from drifting too far from original meaning. Below 0.68, text starts losing critical facts.
-- **API key resolution** — checks env var, then config, then sidebar input. No side effects on `os.environ`.
-- **Dedicated per-function RNGs (polish.py)** — each rule seeds a private `random.Random()` from `hashlib.md5(text.encode())`. Same text always produces same output. No global seed contamination across tests.
-- **Shared `sentences()` utility** — unified into `voiceprint/_text.py` via pysbd (rule-based, handles abbreviations like `Dr.`, `U.S.`, `e.g.`). Single source of truth for sentence boundary splitting.
-- **Skip-on-fail detection selection** — when `select_best` runs detection on top candidates and a detector raises (model error, OOM), the failed candidate is skipped entirely via `continue` rather than assigned a neutral `p_ai=0.5` score. This prevents error artifacts from being selected as "best." Fallback to similarity-based selection when all detections fail.
-- **Pipeline reuses detector** — `HumanizePipeline.ensemble` is passed to `select_best()` as the `detector` parameter instead of creating a new `DetectorEnsemble` per iteration. Models are cached at module level regardless, but this avoids redundant object overhead across the retry loop.
-- **Lazy torch/transformers imports in detect.py** — all heavy ML deps loaded inside functions, not at module level. ImportError wrappers raise friendly install hints instead of cryptic "No module named" errors. `requirements.txt` keeps only core deps for fast Streamlit Cloud deploys.
+---
 
 ## Setup
 
 ### Prerequisites
 
 - Python 3.12+
-- Windows, macOS, or Linux
-- An API key from one supported provider (free tiers work)
+- An API key from one supported provider (free tiers work for all)
 
 ### Install
 
 ```bash
-git clone <repo-url> && cd VoicePrint
+git clone https://github.com/AshayK003/VoicePrint.git
+cd VoicePrint
 pip install -r requirements.txt
 ```
 
-Optional ML packages (torch, transformers, etc.) for model-based detection are lazy-loaded. Install on-demand:
+Optional — enables model-based detection (RoBERTa, GPT-2 perplexity, MiniLM similarity):
 
 ```bash
+# Install all at once:
 pip install torch transformers sentence-transformers scikit-learn spacy
+python -m spacy download en_core_web_sm
+
+# Or let them auto-install on first use — the app prompts with the exact command.
 ```
 
 ### Configure
@@ -73,7 +80,7 @@ pip install torch transformers sentence-transformers scikit-learn spacy
 cp .env.example .env
 ```
 
-Edit `.env` and set the API key for your chosen provider. Only one key is needed.
+Set your API key in `.env`. Only one key is needed. The UI auto-detects provider from the key prefix.
 
 ### Run
 
@@ -81,133 +88,177 @@ Edit `.env` and set the API key for your chosen provider. Only one key is needed
 streamlit run app.py
 ```
 
-Opens at http://localhost:8501. Paste AI text, optionally toggle pipeline stages, click **Humanize**.
+Opens at `http://localhost:8501`. Paste AI text, optionally toggle pipeline stages, click **Humanize**. No model downloads on first run — those trigger on first detection use.
 
-### CLI usage (via service layer)
+### Use as a library
 
 ```python
 from voiceprint.service import humanize, detect
 
+# Full pipeline
 result = humanize("Your AI-generated text here")
 print(result.text)
 print(f"AI probability: {result.ai_probability:.1%}")
 print(f"Similarity: {result.similarity:.1%}")
-print(f"Perplexity: {result.perplexity:.1f}")
 
 # Detection-only pre-check
 pre = detect("Some text")
 print(pre["summary"])
 ```
 
+---
+
 ## Environment variables
 
-| Variable | Required | Default | Purpose |
-|----------|----------|---------|---------|
-| `OPENCODE_API_KEY` | For OpenCode Zen | — | OpenCode AI key (default provider) |
-| `GEMINI_API_KEY` | For Gemini provider | — | Google AI Studio key (free) |
-| `GROQ_API_KEY` | For Groq provider | — | Groq Cloud key (free) |
-| `MISTRAL_API_KEY` | For Mistral provider | — | Mistral AI key (free) |
-| `OPENAI_API_KEY` | For OpenAI provider | — | OpenAI API key |
-| `ANTHROPIC_API_KEY` | For Anthropic provider | — | Anthropic API key |
-| `VOICEPRINT_LLM_MODEL` | No | Provider default | Override the LLM model |
-| `VOICEPRINT_SIMILARITY_THRESHOLD` | No | `0.68` | Min cosine similarity to original |
-| `VOICEPRINT_HUMANIZER_MODEL` | No | `models/humanizer/mistral-7b-humanizer.gguf` | Path to GGUF model file |
+### API keys (set at least one)
 
-At least one API key must be set (either via env var, sidebar, or Windows registry). The UI auto-detects provider from the key prefix. OpenCode Zen keys (79 chars, `sk-`) are auto-detected by length > 60.
+| Variable | Provider | Rate limit | Get key |
+|----------|----------|-----------|---------|
+| `OPENCODE_API_KEY` | OpenCode Zen (default) | No observed limits | https://opencode.ai |
+| `GEMINI_API_KEY` | Google Gemini | 15 RPM free | https://aistudio.google.com/app/apikey |
+| `GROQ_API_KEY` | Groq Cloud | 30 RPM free | https://console.groq.com/keys |
+| `MISTRAL_API_KEY` | Mistral AI | 1 req/s free | https://console.mistral.ai/api-keys |
+| `OPENAI_API_KEY` | OpenAI | Pay-as-you-go | https://platform.openai.com/api-keys |
+| `ANTHROPIC_API_KEY` | Anthropic | Pay-as-you-go | https://console.anthropic.com/ |
 
-API key resolution priority: **explicit arg > env var > Windows registry** (`HKCU\Environment\OPENCODE_API_KEY`).
+Resolution priority: **explicit arg > env var > Windows registry** (`HKCU\Environment\*KEY_NAME*`).
 
-### Free provider key links
+### Pipeline settings
 
-- **OpenCode Zen** — https://opencode.ai (default, no rate limits observed on free tier)
-- **Gemini** — https://aistudio.google.com/app/apikey (15 RPM free)
-- **Groq** — https://console.groq.com/keys (30 RPM free)
-- **Mistral** — https://console.mistral.ai/api-keys (1 req/s free)
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `VOICEPRINT_LLM_MODEL` | Provider default | Override the LLM model name |
+| `VOICEPRINT_SIMILARITY_THRESHOLD` | `0.68` | Minimum cosine similarity to original |
+| `VOICEPRINT_HUMANIZER_MODEL` | `models/humanizer/mistral-7b-humanizer.gguf` | Path to optional GGUF model |
+
+---
 
 ## Project structure
 
 ```
 VoicePrint/
-├── app.py                     # Streamlit frontend
+├── app.py                        # Streamlit frontend
 ├── voiceprint/
-│   ├── __init__.py            # Package entry, exports public API
-│   ├── service.py             # Entry point: humanize(), detect()
-│   ├── pipeline.py            # Orchestrator: wires all stages + retry loop + PromptMemory
-│   ├── scrub.py               # Stage 1: heuristic rule engine (50+ AI-pattern rules)
-│   ├── paraphrase.py          # Stage 2: LLM API client + NINJA_PROMPTS + candidate selection
-│   ├── detect.py              # Stage 3: detection ensemble (stat + Binoculars + RoBERTa + perplexity)
-│   ├── polish.py              # Stage 4: style post-processing (dysfluency, narrative, etc.)
-│   ├── restructure.py         # Stage 2b: syntactic clause restructuring via spaCy
-│   ├── config.py              # Config dataclass, provider presets, env/registry, validation
-│   ├── humanizer_model.py     # Phase 2: fine-tuned GGUF model inference (optional)
-│   ├── metrics.py             # Burstiness, readability scoring
-│   ├── patterns.py            # AI-pattern fingerprint signals (12+ signals, weighted scoring, optional pystylometry)
-│   ├── perplexity.py          # GPT-2 based perplexity scoring (lazy-loaded, 0-1 normalized)
-│   ├── memory.py              # PromptMemory — adaptive prompt_level feedback loop
-│   ├── similarity.py          # Semantic similarity (MiniLM / Jaccard fallback)
-│   ├── _text.py               # Shared text utilities (sentences() splitter)
+│   ├── __init__.py               # Package entry, exports public API
+│   ├── service.py                # Entry point: humanize(), detect()
+│   ├── pipeline.py               # Orchestrator: wires stages + retry loop
+│   ├── scrub.py                  # Stage 1: 50+ heuristic rules
+│   ├── paraphrase.py             # Stage 2: LLM client + prompt library
+│   ├── restructure.py            # Stage 2b: spaCy clause transformations
+│   ├── detect.py                 # Stage 3: 3-tier detection ensemble
+│   ├── polish.py                 # Stage 4: 10 style-postprocessing rules
+│   ├── config.py                 # Dataclass, provider presets, validation
+│   ├── humanizer_model.py        # Optional GGUF model inference
+│   ├── metrics.py                # Burstiness, readability scoring
+│   ├── patterns.py               # 12 AI-pattern fingerprint signals
+│   ├── perplexity.py             # GPT-2 perplexity (lazy-loaded)
+│   ├── memory.py                 # Adaptive prompt-level feedback loop
+│   ├── similarity.py             # MiniLM / Jaccard similarity gate
+│   ├── _text.py                  # Shared sentence splitter (pysbd)
 │   └── static/
-│       └── style.css          # App stylesheet
-├── .github/
-│   └── workflows/
-│       └── ci.yml                # CI: pytest on push/PR (3.11 + 3.12), Ruff lint
-├── .streamlit/
-│   └── config.toml               # Streamlit Cloud: theme, fast reruns, cold-start config
-├── pyproject.toml                 # Project config (Ruff, pytest)
-├── tests/                     # 343 tests (+2 skipped, optional pystylometry), all mocked (no API calls, no model downloads)
+│       └── style.css
+├── tests/                        # 345 tests, all mocked, no network
 ├── tools/
-│   └── analyze_banned_words.py  # Dataset-based banned word analysis (gsingh1-py/train)
-├── .env.example               # Environment variable template
+│   └── analyze_banned_words.py
+├── .github/workflows/ci.yml      # Pytest on push/PR (3.11 + 3.12)
+├── .streamlit/config.toml
+├── pyproject.toml                # Ruff, pytest config
+├── .env.example
 └── requirements.txt
 ```
 
-Layering is strict: `app.py` → `service.py` → `pipeline.py` → individual modules. Each layer only imports from the layer below. No circular dependencies.
+Layering is strict: `app.py → service.py → pipeline.py → modules`. Each layer only imports from the layer below. No circular dependencies.
+
+---
+
+## Local development flow
+
+```bash
+# 1. Install deps
+pip install -r requirements.txt
+
+# 2. Run tests (this is fast — all mocked, no network)
+pytest tests/ -v
+
+# 3. Start the app
+streamlit run app.py
+
+# 4. Make changes
+#    - New scrub/polish rule? Add a function with @rule decorator.
+#    - New signal? Add it in patterns.py, update _WEIGHTS and compute_all_signals().
+#    - New endpoint? Add it in service.py, wire into pipeline.py.
+
+# 5. Lint before committing
+ruff check voiceprint/ tests/
+```
+
+### Adding a new scrub rule
+
+```python
+# voiceprint/scrub.py
+@rule
+def lowercase_specific_terms(text: str) -> str:
+    """Convert specific AI-favorite capitalized terms to lowercase."""
+    return re.sub(r"\bInternet\b", "internet", text)
+```
+
+The `@rule` decorator auto-registers it. No other wiring needed. Same pattern for polish rules.
+
+### Adding a new detection signal
+
+1. Add the signal function in `patterns.py` (signature: `text: str → float`, 0–1 range)
+2. Add it to `compute_all_signals()`
+3. Add its weight to `_WEIGHTS`
+4. `pattern_score()` handles the rest
+
+---
 
 ## Testing
 
 ```bash
-# Run all tests (343 pass, 2 skipped, ~16s)
+# Full suite (345 pass, 2 skipped, ~16s)
 pytest tests/ -v
 
-# Run a specific module
+# Single module
 pytest tests/test_scrub.py -v
 
-# Run with coverage
+# With coverage
 pytest tests/ --cov=voiceprint
+
+# With coverage report
+pytest tests/ --cov=voiceprint --cov-report=html
 ```
 
 ### Test strategy
 
-- No API calls — all LLM and detection calls are mocked via `unittest.mock`
-- No model downloads — `torch`, `transformers`, `sentence_transformers`, `spaCy`, and `sklearn` are stubbed in `tests/conftest.py`
-- Tests cover: each scrub rule, pattern signal, paraphrase candidate flow, perplexity scoring, PromptMemory, pipeline retry logic, restructure rules, service validation, rate limiting, URL validation, XSS safety, and config edge cases
-- Perplexity tests skip model-dependent assertions when GPT-2 is unavailable; mock guard rejects stubs via `type(_MODEL).__module__`
+- **No API calls** — all LLM and detection calls mocked via `unittest.mock`
+- **No model downloads** — torch, transformers, spaCy, sklearn stubbed in `conftest.py`
+- **Perplexity**: mock guard rejects stubs (`type(_MODEL).__module__.startswith("unittest.mock")` returns `None`), so tests never load GPT-2
+- **Coverage**: each module has a corresponding `tests/test_*.py`. Tests cover edge cases, error paths, and boundary conditions, not just happy paths.
 
-### Adding tests
-
-Each test class mirrors a production module. Mock at the boundary where your module calls an external dependency:
+### Mocking external calls
 
 ```python
 @patch("voiceprint.paraphrase.litellm.completion")
 def test_my_feature(self, mock_completion):
-    mock_completion.return_value = fake_response()
+    mock_completion.return_value.choices[0].message.content = "Humanized text"
+    result = humanize("Some AI text")
+    assert result.success
 ```
+
+---
 
 ## Deployment
 
-### Streamlit Community Cloud
+### Streamlit Community Cloud (easiest)
 
 1. Push to GitHub
-2. Go to https://share.streamlit.io
-3. Connect the repo, set `app.py` as entry point
-4. Add API keys as **Secrets** (Streamlit Cloud → Settings → Secrets)
-
-```toml
-# .streamlit/secrets.toml
-OPENCODE_API_KEY = "your-key"
-```
-
-Cold start is ~10s faster than before — `requirements.txt` now contains only lightweight core deps (streamlit, litellm, textstat, numpy). Heavy ML packages (torch, transformers, etc.) install on first model-based detection use instead of on every deploy.
+2. Go to https://share.streamlit.io, connect repo, set `app.py` as entry point
+3. Add API key in **Settings → Secrets**:
+   ```toml
+   OPENCODE_API_KEY = "your-key"
+   ```
+4. Done. Cold start is ~10s — only lightweight core deps are in `requirements.txt`
 
 ### Docker
 
@@ -221,50 +272,56 @@ EXPOSE 8501
 CMD ["streamlit", "run", "app.py"]
 ```
 
-### Notes
+### Production notes
 
-- Detection models (RoBERTa, Binoculars) are ~4GB total and download on first use. They are cached in HuggingFace's default cache dir (`~/.cache/huggingface/`).
-- GPT-2 for perplexity scoring (~525MB) is cached the same way, lazy-loaded on first call.
-- Streamlit's `@st.cache_resource` prevents reloading models on every rerun.
-- The rate limiter allows 10 `humanize()` calls per 60 seconds per process.
+- Detection models (RoBERTa + Binoculars) are ~4GB total, cached in `~/.cache/huggingface/`
+- GPT-2 for perplexity is ~525MB, same cache
+- Rate limiter: 10 `humanize()` calls per 60 seconds per process
+- On Streamlit Cloud, set `fastReruns = true` in `.streamlit/config.toml` (done)
+- ML models are lazy-loaded: first detection call after deploy triggers download
+
+---
 
 ## Troubleshooting
 
 | Problem | Likely cause | Fix |
 |---------|-------------|-----|
-| `[Errno 22]` on startup | litellm file operation bug on Windows | Already handled in code (litellm cache disabled) |
-| Model takes forever to load | First download of ~4GB of model weights | Wait once. Subsequent loads are cached. |
+| `[Errno 22]` on startup | litellm file cache bug on Windows | Already handled (cache disabled in code) |
+| Model takes forever to load | First download of ~4GB HuggingFace models | Wait once. Subsequent loads are cached. |
 | "Base URL validation failed" | Custom endpoint without HTTPS | Only HTTP allowed for localhost (ollama, LM Studio) |
-| "No API key set" | Neither env var nor sidebar input | Set `OPENCODE_API_KEY` in `.env` or paste key in sidebar |
+| "No API key set" | Missing key in both env and sidebar | Set `OPENCODE_API_KEY` in `.env` or paste key in sidebar |
 | API call fails silently | Free tier rate limit hit | Wait 60s or switch providers |
-| Similarity score is 0.0 | Model failed to load, fell back to Jaccard on non-overlapping text | Check model download or set `use_models=False` for Jaccard-only mode |
+| Similarity = 0.0 | Model download failed, fell back to Jaccard on non-overlapping text | Run `pip install sentence-transformers` or set `use_models=False` |
+| Perplexity shows as N/A | Missing `import os` in `perplexity.py` | Update to latest commit (fix in `7cc04d2`) |
+| spaCy errors | Model not downloaded | `python -m spacy download en_core_web_sm` |
+| Streamlit keeps rerunning | Widget state change triggers full-script rerun | Expected. Results survive in `st.session_state`. |
+
+---
 
 ## Contributing
 
 ### Principles
 
-- **No paid dependencies** — all libraries must be MIT/Apache-2.0 licensed
-- **No GPU required** — cloud APIs only for LLM, local CPU for detection
-- **Business logic lives in `voiceprint/`**, not in `app.py`
-- **Test in isolation** — mock external calls, never require API keys for tests
-- **Type hints** on all function signatures
+- **No paid dependencies.** All libraries must be MIT/Apache-2.0 licensed.
+- **No GPU required.** Cloud APIs for LLM, local CPU for detection. Always.
+- **Business logic lives in `voiceprint/`**, not in `app.py`. The Streamlit frontend is a thin shell.
+- **Test in isolation.** Mock external calls. Never require API keys for tests.
+- **Type hints** on all function signatures. Keep modules under 300 lines.
 
-### Guidelines
+### Workflow
 
-1. Open an issue before starting work
-2. Follow the existing module structure — each stage is one file
-3. Keep modules focused; split only when a clear maintenance boundary emerges
-4. Scrub rules follow the decorator pattern: `@rule` with `text: str → str` signature
-5. Run `pytest tests/ -v` before submitting — all tests must pass (343 + 2 optional skipped)
-6. Add tests for new functionality; remove tests only when removing dead code
+1. Open an issue first — describe what you're changing and why
+2. Follow the module structure (one stage = one file)
+3. Scrub/polish rules use the `@rule` decorator with `text: str → str` signature
+4. Run the full suite before submitting: `pytest tests/ -v` (must pass, 345 tests)
+5. Add tests for new functionality. Remove tests only when removing dead code.
+6. Run `ruff check voiceprint/ tests/` for lint
 
 ### Code of conduct
 
 Be constructive. This is a research-oriented project; questions and experiments are welcome.
 
-## Support
-
-<a href="https://chai4.me/darkcharon3301" target="_blank" title="Support darkcharon3301 on Chai4Me" style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;background:#ffffff;padding:8px 32px;border-radius:16px;text-decoration:none;border:1px solid #e5e7eb;box-shadow:0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05);"><img src="https://chai4.me/icons/wordmark.png" alt="Chai4Me" style="height:32px;object-fit:contain;"/></a>
+---
 
 ## License
 

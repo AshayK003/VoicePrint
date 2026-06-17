@@ -273,8 +273,6 @@ def swap_main_subordinate(text: str, _prob: float = 0.3) -> str:
     'Although the data was noisy, we proceeded.' →
     'We proceeded, although the data was noisy.'
     """
-    import re as _re
-
     _rng = random.Random()
     _rng.seed(hashlib.md5(text.encode()).hexdigest())
 

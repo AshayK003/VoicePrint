@@ -286,7 +286,7 @@ class TestSelectBest:
         assert best == "Candidate A"
 
     @patch("voiceprint.paraphrase.check_similarity")
-    def test_detector_exception_uses_neutral_pai(self, mock_sim):
+    def test_detector_exception_skips_failed_candidate(self, mock_sim):
         mock_sim.side_effect = [0.85, 0.80]
         detector = MagicMock()
         from voiceprint.detect import EnsembleResult

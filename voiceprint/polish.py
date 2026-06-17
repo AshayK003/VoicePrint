@@ -24,7 +24,7 @@ _rng_vocab = random.Random()
 _rng_selfdoubt = random.Random()
 _rng_opinion = random.Random()
 _rng_openers = random.Random()
-_rng_topicshift = random.Random()
+
 
 
 # ---------------------------------------------------------------------------

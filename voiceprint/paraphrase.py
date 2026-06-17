@@ -39,47 +39,6 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Trained model integration
-# ---------------------------------------------------------------------------
-
-_HUMANIZER_CACHE: dict[str, object] = {}
-
-
-def generate_trained_candidate(
-    text: str,
-    model_path: str | None = None,
-    temperature: float = 1.0,
-) -> str | None:
-    """Generate a candidate using the trained HumanizerModel.
-
-    Falls back gracefully if the model isn't available or fails to load.
-    Returns None on failure so callers can fall back to LLM API.
-
-    The model is cached globally after first load.
-    """
-    global _HUMANIZER_CACHE
-    cache_key = model_path or "default"
-
-    if cache_key not in _HUMANIZER_CACHE:
-        try:
-            from .humanizer_model import HumanizerModel
-            _HUMANIZER_CACHE[cache_key] = HumanizerModel(model_path)
-        except (FileNotFoundError, ImportError, OSError) as e:
-            logger.debug(f"Trained model not available: {e}")
-            _HUMANIZER_CACHE[cache_key] = None
-
-    model = _HUMANIZER_CACHE.get(cache_key)
-    if model is None:
-        return None
-
-    try:
-        return model.humanize(text, temperature=temperature)
-    except Exception as e:
-        logger.warning(f"Trained model candidate failed: {e}")
-        return None
-
-
-# ---------------------------------------------------------------------------
 # Error sanitization — redact API keys from log messages
 # ---------------------------------------------------------------------------
 
@@ -407,24 +366,16 @@ def select_best(
     config: Config | None = None,
     detector=None,
     min_sim: float | None = None,
-    use_trained_model: bool = False,
-    trained_model_path: str | None = None,
 ) -> tuple[str, float]:
     """Select the best candidate by detection score, not just similarity.
 
     Optimization: pre-filter by similarity (cheap), then detect only top candidates (expensive).
     This reduces detection calls from N to min(N, 3).
 
-    When use_trained_model=True, also generates a candidate from the trained
-    HumanizerModel and includes it in the pool. Falls back gracefully if the
-    model isn't available.
-
     Args:
         detector: Optional DetectorEnsemble instance. If None, creates one.
         min_sim: Minimum similarity gate for candidate pool. Derived from
             config.similarity_threshold if None (typically threshold - 0.13).
-        use_trained_model: Whether to include a trained model candidate.
-        trained_model_path: Path to trained model. None = use default.
 
     Returns (best_candidate, similarity_score).
     """
@@ -432,21 +383,6 @@ def select_best(
 
     if not candidates:
         return original, 1.0
-
-    # Include trained model candidate if available
-    if use_trained_model:
-        trained_candidate = generate_trained_candidate(
-            original, model_path=trained_model_path
-        )
-        if trained_candidate and trained_candidate.strip():
-            # De-duplicate against existing candidates
-            is_duplicate = any(
-                c.strip().lower() == trained_candidate.strip().lower()
-                for c in candidates
-            )
-            if not is_duplicate:
-                candidates = candidates + [trained_candidate]
-                logger.debug("Added trained model candidate to pool")
 
     if min_sim is None:
         min_sim = max(0.5, config.similarity_threshold - 0.13)

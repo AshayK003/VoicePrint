@@ -41,7 +41,7 @@ Stage 2 is the only API-dependent step. Stages 1, 3, and 4 run locally with no n
 - **Similarity gate at 0.68** — prevents the LLM from drifting too far from original meaning. Below 0.68, text starts losing critical facts.
 - **API key resolution** — checks env var, then config, then sidebar input. No side effects on `os.environ`.
 - **Dedicated per-function RNGs (polish.py)** — each rule seeds a private `random.Random()` from `hashlib.md5(text.encode())`. Same text always produces same output. No global seed contamination across tests.
-- **Shared `sentences()` utility** — 12 regex copies unified into `voiceprint/_text.py`. Single source of truth for sentence boundary splitting.
+- **Shared `sentences()` utility** — unified into `voiceprint/_text.py` via pysbd (rule-based, handles abbreviations like `Dr.`, `U.S.`, `e.g.`). Single source of truth for sentence boundary splitting.
 - **Lazy torch/transformers imports in detect.py** — all heavy ML deps loaded inside functions, not at module level. ImportError wrappers raise friendly install hints instead of cryptic "No module named" errors. `requirements.txt` keeps only core deps for fast Streamlit Cloud deploys.
 
 ## Setup
@@ -139,7 +139,7 @@ VoicePrint/
 │   ├── config.py              # Config dataclass, provider presets, env/registry, validation
 │   ├── humanizer_model.py     # Phase 2: fine-tuned GGUF model inference (optional)
 │   ├── metrics.py             # Burstiness, readability scoring
-│   ├── patterns.py            # AI-pattern fingerprint signals (15+ signals, optional pystylometry)
+│   ├── patterns.py            # AI-pattern fingerprint signals (12+ signals, weighted scoring, optional pystylometry)
 │   ├── perplexity.py          # GPT-2 based perplexity scoring (lazy-loaded, 0-1 normalized)
 │   ├── memory.py              # PromptMemory — adaptive prompt_level feedback loop
 │   ├── similarity.py          # Semantic similarity (MiniLM / Jaccard fallback)
@@ -152,7 +152,7 @@ VoicePrint/
 ├── .streamlit/
 │   └── config.toml               # Streamlit Cloud: theme, fast reruns, cold-start config
 ├── pyproject.toml                 # Project config (Ruff, pytest)
-├── tests/                     # 345 tests, all mocked (no API calls, no model downloads)
+├── tests/                     # 343 tests (+2 skipped, optional pystylometry), all mocked (no API calls, no model downloads)
 ├── tools/
 │   └── analyze_banned_words.py  # Dataset-based banned word analysis (gsingh1-py/train)
 ├── .env.example               # Environment variable template
@@ -164,7 +164,7 @@ Layering is strict: `app.py` → `service.py` → `pipeline.py` → individual m
 ## Testing
 
 ```bash
-# Run all tests (345 total, ~20s)
+# Run all tests (343 pass, 2 skipped, ~16s)
 pytest tests/ -v
 
 # Run a specific module
@@ -253,7 +253,7 @@ CMD ["streamlit", "run", "app.py"]
 2. Follow the existing module structure — each stage is one file
 3. Keep modules focused; split only when a clear maintenance boundary emerges
 4. Scrub rules follow the decorator pattern: `@rule` with `text: str → str` signature
-5. Run `pytest tests/ -v` before submitting — all 345 tests must pass
+5. Run `pytest tests/ -v` before submitting — all tests must pass (343 + 2 optional skipped)
 6. Add tests for new functionality; remove tests only when removing dead code
 
 ### Code of conduct

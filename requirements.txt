@@ -15,5 +15,8 @@ textstat>=0.7
 # Math — used eagerly in metrics.py and patterns.py
 numpy>=1.24
 
+# Sentence boundary detection (handles abbreviations, initials, etc.)
+pysbd>=0.3.4
+
 # Testing
 pytest>=7.0

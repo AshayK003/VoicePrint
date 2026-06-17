@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import re
-
 import numpy as np
 
 from ._text import sentences as _split_sentences

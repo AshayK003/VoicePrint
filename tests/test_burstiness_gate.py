@@ -1,8 +1,8 @@
 """Tests for burstiness validation gate in pipeline.py."""
-import pytest
-from unittest.mock import patch, MagicMock
-from voiceprint.pipeline import HumanizePipeline, PipelineResult
+from unittest.mock import MagicMock, patch
+
 from voiceprint.detect import EnsembleResult
+from voiceprint.pipeline import HumanizePipeline
 
 
 class TestBurstinessGate:
@@ -49,6 +49,7 @@ class TestBurstinessGate:
             assert call_count >= 2, (
                 f"Expected >=2 detect calls (retry due to low burstiness), got {call_count}"
             )
+            assert "candidate text here" in result.humanized
 
     def test_high_burstiness_no_extra_retry(self):
         """When burstiness >= 0.3, no extra retry needed."""
@@ -90,6 +91,7 @@ class TestBurstinessGate:
             assert call_count == 1, (
                 f"Expected 1 detect call (no retry needed), got {call_count}"
             )
+            assert "candidate text here" in result.humanized
 
     def test_burstiness_gate_respects_max_iterations(self):
         """Burstiness gate should not exceed max_iterations."""
@@ -131,3 +133,4 @@ class TestBurstinessGate:
             assert call_count <= 2, (
                 f"Expected <=2 detect calls (max_iter=2), got {call_count}"
             )
+            assert "candidate text" in result.humanized

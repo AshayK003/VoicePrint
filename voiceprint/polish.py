@@ -7,10 +7,9 @@ fragments, normalizes burstiness. Pure Python, no model needed.
 import hashlib
 import random
 import re
-from typing import Callable
+from collections.abc import Callable
 
 from ._text import sentences as _split_sentences
-
 
 # ---------------------------------------------------------------------------
 # Dedicated per-function RNGs (deterministic per input text)
@@ -93,11 +92,10 @@ def inject_rhetorical_questions(text: str) -> str:
     for i, sent in enumerate(sents):
         result.append(sent)
         since_last += 1
-        if since_last > 3 and _rng_questions.random() < 0.08:
-            if i < len(sents) - 2:
-                q = _rng_questions.choice(RHETORICAL_QUESTIONS)
-                result.append(q)
-                since_last = 0
+        if since_last > 3 and _rng_questions.random() < 0.08 and i < len(sents) - 2:
+            q = _rng_questions.choice(RHETORICAL_QUESTIONS)
+            result.append(q)
+            since_last = 0
 
     return " ".join(result)
 
@@ -132,10 +130,9 @@ def inject_fragments(text: str) -> str:
     for i, sent in enumerate(sents):
         result.append(sent)
         # Inject fragment before a long sentence
-        if i < len(sents) - 1 and len(sents[i + 1].split()) > 20:
-            if _rng_fragments.random() < 0.15:  # 15% chance
-                fragment = _rng_fragments.choice(FRAGMENTS)
-                result.append(fragment)
+        if i < len(sents) - 1 and len(sents[i + 1].split()) > 20 and _rng_fragments.random() < 0.15:
+            fragment = _rng_fragments.choice(FRAGMENTS)  # 15% chance
+            result.append(fragment)
 
     return " ".join(result)
 
@@ -681,7 +678,6 @@ def naturalize(text: str) -> str:
 
     for i, sent in enumerate(sents):
         stripped = sent.strip()
-        first_word = stripped.split()[0] if stripped.split() else ""
         # Dysfluency leaders
         for m in _DYSFLUENCY_LEADERS:
             if stripped.startswith(m):

@@ -4,9 +4,7 @@ Note: detect_provider_from_key has been moved to voiceprint.config.
 Tests for it are in test_config.py. This file tests app.py helpers only.
 """
 
-import pytest
-from app import _word_diff_html, _copy_button_html, _status_badge
-
+from app import _copy_button_html, _status_badge, _word_diff_html
 
 # ---------------------------------------------------------------------------
 # _word_diff_html

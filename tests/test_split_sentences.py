@@ -1,8 +1,6 @@
 """Tests for the split_long_sentences scrub rule (burstiness engineering)."""
-import pytest
 from voiceprint.metrics import burstiness, sentence_lengths
 from voiceprint.scrub import split_long_sentences
-
 
 # ---------------------------------------------------------------------------
 # split_long_sentences

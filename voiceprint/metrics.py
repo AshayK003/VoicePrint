@@ -5,7 +5,6 @@ from __future__ import annotations
 import numpy as np
 
 from ._text import sentences as _split_sentences
-import textstat
 
 
 def sentence_lengths(text: str) -> list[int]:
@@ -50,6 +49,8 @@ def burstiness_report(text: str) -> dict:
 
 def readability_scores(text: str) -> dict:
     """Calculate readability metrics."""
+    import textstat
+
     return {
         "flesch_reading_ease": round(textstat.flesch_reading_ease(text), 1),
         "flesch_kincaid_grade": round(textstat.flesch_kincaid_grade(text), 1),

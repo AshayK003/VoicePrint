@@ -4,19 +4,19 @@ Run: streamlit run app.py
 """
 
 import json
+from html import escape
 from pathlib import Path
 
 import streamlit as st
 
 from voiceprint.config import (
-    PROVIDER_PRESETS,
-    PROVIDER_MODELS,
     PROVIDER_BASE_URLS,
+    PROVIDER_MODELS,
+    PROVIDER_PRESETS,
     detect_provider_from_key,
 )
-from voiceprint.service import build_config, humanize, detect, InputError
 from voiceprint.paraphrase import test_llm_connection
-
+from voiceprint.service import InputError, build_config, detect, humanize
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -331,7 +331,6 @@ def _copy_button_html(text: str, button_id: str = "copy-btn") -> str:
     safe = safe.replace('"', "&quot;")
     safe = safe.replace("<", "&lt;")
     safe = safe.replace(">", "&gt;")
-    safe_nl = safe.replace("\n", "\\n").replace("\r", "\\r")
     return (
         f'<button id="{button_id}" class="vp-copy-btn" '
         f'data-text="{safe}" '
@@ -591,7 +590,7 @@ if result:
             )
 
         st.markdown(
-            f'<div class="vp-card vp-output-card">{result.text}</div>',
+            f'<div class="vp-card vp-output-card">{escape(result.text)}</div>',
             unsafe_allow_html=True,
         )
 
@@ -675,7 +674,7 @@ if result:
     with st.expander("Side-by-Side Diff", expanded=False):
         diff_html = _word_diff_html(result.original, result.text)
         orig_paragraphs = "".join(
-            f"<p>{line}</p>" for line in result.original.strip().split("\n")
+            f"<p>{escape(line)}</p>" for line in result.original.strip().split("\n")
         )
         st.markdown(
             '<div class="vp-diff-container">'
@@ -780,7 +779,7 @@ else:
 </div>
             """, unsafe_allow_html=True)
 
-        if input_text and input_text.strip():
+        if input_text and input_text.strip():  # noqa: SIM102 — button must render before the click check
             if st.button("Quick Detection Check", use_container_width=False):
                 with st.spinner("Analyzing..."):
                     try:

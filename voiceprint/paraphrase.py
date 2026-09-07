@@ -32,8 +32,8 @@ def _ensure_litellm():
     _LITELLM_READY = True
 
 
-from .config import Config, load_config
-from .similarity import check_similarity
+from .config import Config, load_config  # noqa: E402 — after litellm bootstrap
+from .similarity import check_similarity  # noqa: E402 — after litellm bootstrap
 
 logger = logging.getLogger(__name__)
 
@@ -176,7 +176,7 @@ Text:
     """\
 Rewrite this text completely from scratch. Imagine you're explaining this to a friend over coffee — you're knowledgeable about it, but you're not delivering a prepared speech. You're thinking as you speak.
 
-Use a dictation-like quality: sentences run into each other naturally, some trail off, some restart. Use contractions heavily. Throw in an occasional self-correction ("actually that's not quite right — "). Use one or two natural digressions. 
+Use a dictation-like quality: sentences run into each other naturally, some trail off, some restart. Use contractions heavily. Throw in an occasional self-correction ("actually that's not quite right —"). Use one or two natural digressions.
 
 The most important thing: this should sound unmistakably like a human being wrote it. Not a writer being casual for effect — just a normal person sharing what they know. Keep it genuine. Don't overdo the casual affectations. Just write like a real person talks.
 
@@ -185,6 +185,10 @@ Keep every fact intact. Don't invent anything.
 Text:
 {text}""",
 ]
+
+# Perplexity floor: candidates scoring below this are too predictable
+# (AI-like) and get rejected before detection. Tuned empirically.
+PERPLEXITY_FLOOR = 30.0
 
 # Backward-compatible alias
 PARAPHRASE_PROMPT = NINJA_PROMPTS[0]
@@ -405,13 +409,16 @@ def select_best(
         for c, s in scored:
             try:
                 ppl = _raw_ppl(c)
-                if ppl is None or ppl >= 30.0:
+                if ppl is None or ppl >= PERPLEXITY_FLOOR:
                     filtered.append((c, s))
-            except Exception:
+                else:
+                    logger.debug("select_best: rejected candidate below perplexity floor")
+            except Exception as e:
+                logger.debug(f"select_best: perplexity check failed ({e}); keeping candidate")
                 filtered.append((c, s))
         scored = filtered
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"select_best: perplexity gate unavailable ({e})")
     if not scored:
         scored = [(c, sim_map[c]) for c in candidates] if candidates else []
 

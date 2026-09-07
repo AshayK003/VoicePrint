@@ -9,20 +9,20 @@ Usage:
 from __future__ import annotations
 
 import logging
+import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 from .config import Config, load_config
-from .scrub import scrub
-from .restructure import apply_restructure
-from .paraphrase import generate_candidates, select_best, NINJA_PROMPTS
 from .detect import DetectorEnsemble, EnsembleResult
-from .polish import polish
-from .similarity import check_similarity
-from .metrics import burstiness, burstiness_report, readability_scores
-from .patterns import pattern_score, compute_all_signals
 from .memory import PromptMemory
-
+from .metrics import burstiness, burstiness_report, readability_scores
+from .paraphrase import NINJA_PROMPTS, generate_candidates, select_best
+from .patterns import compute_all_signals, pattern_score
+from .polish import polish
+from .restructure import apply_restructure
+from .scrub import scrub
+from .similarity import check_similarity
 
 # ---------------------------------------------------------------------------
 # Result data class
@@ -265,7 +265,7 @@ class HumanizePipeline:
 
         _report(0.93, "Stage 5: Computing metrics...")
 
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=min(4, os.cpu_count() or 4)) as executor:
             fut_sim = executor.submit(_compute_similarity)
             fut_bur = executor.submit(_compute_burstiness)
             fut_ps = executor.submit(_compute_pattern_score)

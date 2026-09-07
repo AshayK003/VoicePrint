@@ -133,8 +133,8 @@ class RoBERTaDetector:
             self.model = _classifier_cache[self.model_name]
         else:
             try:
-                from transformers import AutoTokenizer, AutoModelForSequenceClassification
                 import torch  # noqa: F401 — ensures torch is importable before model loads
+                from transformers import AutoModelForSequenceClassification, AutoTokenizer
             except ImportError:
                 raise ImportError(
                     "transformers and torch are required for model-based detection. "
@@ -154,7 +154,7 @@ class RoBERTaDetector:
         self._load()
         try:
             import torch
-            import torch.nn.functional as F
+            import torch.nn.functional as f  # noqa: N812 — matches torch docs convention
         except ImportError:
             raise ImportError(
                 "torch is required for model-based detection. "
@@ -171,7 +171,7 @@ class RoBERTaDetector:
 
         with torch.no_grad():
             outputs = self.model(**inputs)
-            probs = F.softmax(outputs.logits, dim=-1)
+            probs = f.softmax(outputs.logits, dim=-1)
 
         p_ai = probs[0][1].item()
         label = "FAKE" if p_ai > 0.5 else "REAL"
@@ -228,7 +228,7 @@ class BinocularsDetector:
                         _binoculars_cache[name] = (tok, model)
                         continue
                 try:
-                    from transformers import AutoTokenizer, AutoModelForCausalLM
+                    from transformers import AutoModelForCausalLM, AutoTokenizer
                 except ImportError:
                     raise ImportError(
                         "transformers is required for model-based detection. "

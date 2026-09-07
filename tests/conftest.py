@@ -51,6 +51,11 @@ if "torch" not in sys.modules:
     st = sys.modules["sentence_transformers"]
     st.SentenceTransformer = MagicMock(return_value=MagicMock())
 
+    # scipy checks issubclass(cls, torch.Tensor) — a MagicMock attribute is
+    # not a class and raises TypeError at scipy import. Give the stub a real
+    # Tensor type so isinstance/issubclass checks behave.
+    sys.modules["torch"].Tensor = type("Tensor", (), {})
+
     # Make sklearn.metrics.pairwise.cosine_similarity return a value
     sk = sys.modules["sklearn.metrics.pairwise"]
     sk.cosine_similarity = MagicMock(return_value=[[0.85]])

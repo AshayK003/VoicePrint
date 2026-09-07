@@ -8,7 +8,7 @@ breaks tricolons, and reduces em-dash density.
 import hashlib
 import random
 import re
-from typing import Callable
+from collections.abc import Callable
 
 # ---------------------------------------------------------------------------
 # Rule registry

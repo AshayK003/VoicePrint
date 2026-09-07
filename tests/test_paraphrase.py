@@ -1,16 +1,17 @@
 """Tests for paraphrase module — LLM integration layer (all mocked)."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
+
 from voiceprint.config import Config
 from voiceprint.paraphrase import (
+    PARAPHRASE_PROMPT,
     _litellm_kwargs,
     generate_candidate,
     generate_candidates,
     select_best,
-    PARAPHRASE_PROMPT,
 )
-
 
 # ---------------------------------------------------------------------------
 # _litellm_kwargs
@@ -185,7 +186,7 @@ class TestGenerateCandidates:
 class TestSelectBest:
     def _mock_detector(self, p_ai_scores):
         """Create a mock detector that returns p_ai values in order."""
-        from voiceprint.detect import EnsembleResult, DetectionResult
+        from voiceprint.detect import DetectionResult, EnsembleResult
         mock = MagicMock()
         results = []
         for p in p_ai_scores:

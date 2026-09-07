@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import importlib.util
 import re
+from collections import Counter
 
 from ._text import sentences as _split_sentences
-from collections import Counter
 
 # Pystylometry — optional, provides robust lexical diversity metrics.
 # Use find_spec to avoid triggering spaCy/torch import chain at module level.

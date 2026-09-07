@@ -1,10 +1,11 @@
 """Tests for semantic similarity gate (MiniLM-L6-v2 + Jaccard fallback)."""
 
-import pytest
 from unittest.mock import patch
-from voiceprint.config import Config
-from voiceprint.similarity import compute_similarity, check_similarity, _jaccard_similarity
 
+import pytest
+
+from voiceprint.config import Config
+from voiceprint.similarity import _jaccard_similarity, check_similarity, compute_similarity
 
 # ---------------------------------------------------------------------------
 # Mock model to avoid downloading during tests

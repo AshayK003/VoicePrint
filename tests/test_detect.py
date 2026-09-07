@@ -1,16 +1,15 @@
 """Tests for detect.py edge cases and error paths."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
 from voiceprint.config import Config
 from voiceprint.detect import (
+    _STAT_HIGH,
+    _STAT_LOW,
+    DetectionResult,
     DetectorEnsemble,
     EnsembleResult,
-    DetectionResult,
-    statistical_detect,
     _statistical_score,
-    _STAT_LOW,
-    _STAT_HIGH,
 )
 
 
@@ -113,7 +112,6 @@ class TestDetectorEnsembleEdgeCases:
 
     def test_boundary_at_stat_low(self):
         """Score exactly at _STAT_LOW should still be considered ambiguous."""
-        ensemble = DetectorEnsemble(config=Config())
         # Mock _statistical_score to return exactly _STAT_LOW
         with patch("voiceprint.detect._statistical_score", return_value=_STAT_LOW):
             # Since _STAT_LOW < threshold, it should skip models

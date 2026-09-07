@@ -1,13 +1,31 @@
 """Tests for Stage 2b: Clause Restructure rules."""
 
+import pytest
+
 from voiceprint.restructure import (
     apply_restructure,
-    front_subordinate_clauses,
-    extract_relative_clauses,
-    swap_main_subordinate,
     convert_appositives,
-    split_compounds,
+    extract_relative_clauses,
+    front_subordinate_clauses,
     normalize_burstiness,
+    split_compounds,
+    swap_main_subordinate,
+)
+
+
+def _spacy_ready() -> bool:
+    """spaCy + en_core_web_sm available? Clause rules no-op without them."""
+    try:
+        import spacy
+
+        spacy.load("en_core_web_sm")
+        return True
+    except Exception:
+        return False
+
+
+needs_spacy = pytest.mark.skipif(
+    not _spacy_ready(), reason="spaCy en_core_web_sm not installed"
 )
 
 
@@ -15,6 +33,7 @@ from voiceprint.restructure import (
 # front_subordinate_clauses
 # ---------------------------------------------------------------------------
 
+@needs_spacy
 class TestFrontSubordinateClauses:
     def test_basic_fronting(self):
         text = "The results were significant because the sample size was large."
@@ -47,6 +66,7 @@ class TestFrontSubordinateClauses:
 # extract_relative_clauses
 # ---------------------------------------------------------------------------
 
+@needs_spacy
 class TestExtractRelativeClauses:
     def test_basic_extraction(self):
         text = "The study, which was conducted by Smith, showed promising results."

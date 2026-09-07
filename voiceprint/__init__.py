@@ -1,9 +1,5 @@
 """VoicePrint — AI Text Humanizer"""
 
-from .perplexity import perplexity_score, raw_perplexity, get_gpt2
-from .memory import PromptMemory
-from .restructure import apply_restructure
-
 # Phase 2: Trained humanizer model (lazy — only imported when actually used)
 try:
     from .humanizer_model import HumanizerModel, humanize

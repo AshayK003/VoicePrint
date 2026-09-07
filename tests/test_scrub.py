@@ -1,19 +1,17 @@
 """Tests for Stage 1: Heuristic Scrub rules."""
 
-import pytest
 from voiceprint.scrub import (
-    scrub,
-    replace_transitions,
-    break_tricolons,
-    reduce_em_dashes,
-    inject_contractions,
-    simplify_passive,
-    remove_hedges,
-    cleanup_numbered_lists,
-    TRANSITION_MAP,
     CONTRACTIONS,
+    TRANSITION_MAP,
+    break_tricolons,
+    cleanup_numbered_lists,
+    inject_contractions,
+    reduce_em_dashes,
+    remove_hedges,
+    replace_transitions,
+    scrub,
+    simplify_passive,
 )
-
 
 # ---------------------------------------------------------------------------
 # Rule registry

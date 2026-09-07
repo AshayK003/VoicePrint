@@ -1,6 +1,6 @@
 # VoicePrint — AI Text Humanizer
 
-![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue) ![tests 345/345](https://img.shields.io/badge/tests-345%2F345-green) ![license MIT](https://img.shields.io/badge/license-MIT-green)
+![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue) ![tests 336 passed, 12 skipped](https://img.shields.io/badge/tests-336_passed,_12_skipped-green) ![license MIT](https://img.shields.io/badge/license-MIT-green)
 
 Multi-stage pipeline that rewrites AI-generated text to bypass GPTZero, Turnitin, Originality.ai, and ZeroGPT. Combines heuristic rules, LLM paraphrasing, detection-feedback selection, and style polish in a single pass.
 
@@ -157,7 +157,7 @@ VoicePrint/
 │   ├── _text.py                  # Shared sentence splitter (pysbd)
 │   └── static/
 │       └── style.css
-├── tests/                        # 345 tests, all mocked, no network
+├── tests/                        # 348 tests, all mocked, no network
 ├── tools/
 │   └── analyze_banned_words.py
 ├── .streamlit/config.toml
@@ -188,7 +188,7 @@ streamlit run app.py
 #    - New endpoint? Add it in service.py, wire into pipeline.py.
 
 # 5. Lint before committing
-ruff check voiceprint/ tests/
+ruff check voiceprint/ app.py tests/
 ```
 
 ### Adding a new scrub rule
@@ -215,7 +215,7 @@ The `@rule` decorator auto-registers it. No other wiring needed. Same pattern fo
 ## Testing
 
 ```bash
-# Full suite (345 pass, 2 skipped, ~16s)
+# Full suite (336 pass, 12 skipped without spaCy en_core_web_sm, ~25s)
 pytest tests/ -v
 
 # Single module

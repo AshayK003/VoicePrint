@@ -1,13 +1,11 @@
 """Tests for metrics module — burstiness, readability, word/char counts."""
 
-import pytest
 from voiceprint.metrics import (
-    sentence_lengths,
     burstiness,
     burstiness_report,
     readability_scores,
+    sentence_lengths,
 )
-
 
 # ---------------------------------------------------------------------------
 # sentence_lengths

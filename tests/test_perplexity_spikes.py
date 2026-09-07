@@ -1,9 +1,8 @@
 """Tests for boosted perplexity spike injection in polish.py."""
-import pytest
 from voiceprint.polish import (
-    inject_vocabulary_variety,
-    inject_perplexity_spikes,
     VOCAB_SWAPS,
+    inject_perplexity_spikes,
+    inject_vocabulary_variety,
 )
 
 

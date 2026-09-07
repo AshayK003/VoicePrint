@@ -1,17 +1,17 @@
 """Tests for config module — provider presets, Config dataclass."""
 
 import pytest
-from voiceprint.config import (
-    Config,
-    PROVIDER_PRESETS,
-    PROVIDER_MODELS,
-    PROVIDER_BASE_URLS,
-    load_config,
-    detect_provider_from_key,
-    validate_config,
-    ConfigError,
-)
 
+from voiceprint.config import (
+    PROVIDER_BASE_URLS,
+    PROVIDER_MODELS,
+    PROVIDER_PRESETS,
+    Config,
+    ConfigError,
+    detect_provider_from_key,
+    load_config,
+    validate_config,
+)
 
 # ---------------------------------------------------------------------------
 # PROVIDER_PRESETS

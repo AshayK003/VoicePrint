@@ -8,11 +8,12 @@ from __future__ import annotations
 import logging
 import os
 import threading
+import time
 from dataclasses import dataclass
 
-from .config import Config, validate_config, load_config
-from .pipeline import HumanizePipeline, PipelineResult
+from .config import Config, load_config, validate_config
 from .memory import PromptMemory
+from .pipeline import HumanizePipeline, PipelineResult
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +21,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Rate limiter — in-process sliding window to prevent runaway API costs
 # ---------------------------------------------------------------------------
-
-import time
 
 # Session-level prompt memory for adaptive feedback loop
 _prompt_memory = PromptMemory()
@@ -54,6 +53,22 @@ def _check_rate_limit() -> None:
 _MIN_TEXT_LENGTH = 10
 _MAX_TEXT_LENGTH = 100_000
 
+# Prompt-injection guard: user text is interpolated into LLM prompts, so
+# reject inputs that attempt to override system instructions.
+_INJECTION_PATTERNS = (
+    "ignore previous instructions",
+    "ignore all previous instructions",
+    "disregard previous instructions",
+    "<<sys>>",
+    "<|system|>",
+    "<|user|>",
+)
+
+
+def _contains_injection(text: str) -> bool:
+    lowered = text.lower()
+    return any(p in lowered for p in _INJECTION_PATTERNS)
+
 
 class InputError(Exception):
     """Raised when user input is invalid."""
@@ -76,6 +91,10 @@ def validate_input(text: str) -> str:
         raise InputError(
             f"Text too long ({len(text):,} chars). "
             f"Maximum is {_MAX_TEXT_LENGTH:,} characters."
+        )
+    if _contains_injection(text):
+        raise InputError(
+            "Text contains prompt-injection patterns and was rejected."
         )
     return text
 
@@ -109,9 +128,8 @@ def build_config(
     if provider:
         from .config import PROVIDER_PRESETS, _read_registry_env
         preset = PROVIDER_PRESETS.get(provider)
-        if not config.api_key:
-            if preset and preset.get("env_key"):
-                config.api_key = os.getenv(preset["env_key"], "")
+        if not config.api_key and preset and preset.get("env_key"):
+            config.api_key = os.getenv(preset["env_key"], "")
         # Absolute last resort: try registry (Windows persistence)
         if not config.api_key:
             config.api_key = _read_registry_env("OPENCODE_API_KEY")

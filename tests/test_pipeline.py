@@ -1,13 +1,17 @@
 """Tests for pipeline orchestrator with mocked LLM and detectors."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
-from voiceprint.pipeline import HumanizePipeline
+
 from voiceprint.config import Config
 from voiceprint.detect import (
-    EnsembleResult, DetectorEnsemble, statistical_detect, DetectionResult,
+    DetectionResult,
+    DetectorEnsemble,
+    EnsembleResult,
+    statistical_detect,
 )
-
+from voiceprint.pipeline import HumanizePipeline
 
 # ---------------------------------------------------------------------------
 # Fake detector result
@@ -52,6 +56,7 @@ class TestHumanizePipeline:
             use_polish=False,
         )
         assert mock_gen.call_count == 5
+        assert result.humanized
 
     @patch("voiceprint.pipeline.generate_candidates", side_effect=Exception("API error"))
     def test_paraphrase_failure_continues(self, mock_gen):
@@ -92,6 +97,7 @@ class TestHumanizePipeline:
             "Furthermore, the results are very important.",
             progress_callback=on_progress,
         )
+        assert result.humanized
         assert len(calls) > 0
         assert calls[-1][0] == 1.0  # Final progress is 1.0
 

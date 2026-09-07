@@ -9,7 +9,8 @@ import hashlib
 import logging
 import random
 import re
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from ._text import sentences as _split_sentences
 
@@ -396,7 +397,6 @@ def split_compounds(text: str, _prob: float = 0.35) -> str:
             continue
 
         first = match.group(1).strip()
-        conjunction = match.group(2)
         second = match.group(3).strip()
 
         first = _capitalize(first)

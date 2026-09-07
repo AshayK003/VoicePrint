@@ -1,24 +1,24 @@
 """Tests for AI-pattern fingerprint signals."""
 
 import pytest
+
 from voiceprint.patterns import (
     PYSTYLOMETRY_AVAILABLE,
-    signal_ai_vocabulary,
-    signal_transition_density,
-    signal_sentence_start_uniformity,
-    signal_tricolons,
-    signal_em_dash_density,
-    signal_hedging,
-    signal_contraction_deficit,
-    signal_ngram_repetition,
-    signal_type_token_ratio,
-    signal_passive_voice,
-    signal_abstract_subjects,
-    signal_modality_overload,
     compute_all_signals,
     pattern_score,
+    signal_abstract_subjects,
+    signal_ai_vocabulary,
+    signal_contraction_deficit,
+    signal_em_dash_density,
+    signal_hedging,
+    signal_modality_overload,
+    signal_ngram_repetition,
+    signal_passive_voice,
+    signal_sentence_start_uniformity,
+    signal_transition_density,
+    signal_tricolons,
+    signal_type_token_ratio,
 )
-
 
 # ---------------------------------------------------------------------------
 # signal_ai_vocabulary

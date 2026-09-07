@@ -1,18 +1,15 @@
 """Tests for Stage 4: Style Polish rules."""
 
-import re
-import pytest
 from voiceprint.polish import (
-    polish,
     convert_passive_to_active,
-    inject_rhetorical_questions,
-    inject_fragments,
     inject_dysfluencies,
+    inject_fragments,
     inject_personal_narrative,
-    remove_duplicates,
+    inject_rhetorical_questions,
     normalize_punctuation,
+    polish,
+    remove_duplicates,
 )
-
 
 # ---------------------------------------------------------------------------
 # convert_passive_to_active

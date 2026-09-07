@@ -53,7 +53,7 @@ htmlcov/
 # Docs (auto-generated)
 docs/_build/
 
-# Agent instructions (local only)
+# Local instructions
 /AGENTS.md
 
 # Temp test scripts
@@ -65,3 +65,10 @@ tmp_test_ppl.py
 # Medium articles
 medium-artiles/
 data/raw/
+
+# Internal files
+internals/
+
+# Training data (large, regenerable via scripts/)
+data/processed/
+data/training/

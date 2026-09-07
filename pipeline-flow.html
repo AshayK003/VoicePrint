@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoicePrint — Humanization Pipeline</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #020617;
+  color: #e2e8f0;
+  font-family: 'JetBrains Mono', monospace;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1rem;
+}
+.diagram-container {
+  max-width: 1100px;
+  width: 100%;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 16px;
+  padding: 2.5rem 2rem;
+  margin-bottom: 2rem;
+}
+h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #f1f5f9;
+  margin-bottom: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+h1 .pulse {
+  width: 8px; height: 8px;
+  background: #22d3ee;
+  border-radius: 50%;
+  display: inline-block;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.subtitle {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-bottom: 2rem;
+}
+svg { width: 100%; height: auto; display: block; }
+.cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1rem;
+  max-width: 1100px;
+  width: 100%;
+}
+.card {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0.75rem;
+}
+.card-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.card-dot.cyan { background: #22d3ee; }
+.card-dot.emerald { background: #34d399; }
+.card-dot.violet { background: #a78bfa; }
+.card h3 {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.card ul { list-style: none; }
+.card li {
+  font-size: 0.65rem;
+  color: #94a3b8;
+  line-height: 1.6;
+  padding-left: 0;
+}
+.card li span.label {
+  color: #e2e8f0;
+}
+.footer {
+  font-size: 0.6rem;
+  color: #475569;
+  text-align: center;
+  margin-top: 2rem;
+}
+@media (max-width: 768px) {
+  .cards { grid-template-columns: 1fr; }
+  .diagram-container { padding: 1.5rem 1rem; }
+}
+</style>
+</head>
+<body>
+<div class="diagram-container">
+  <h1><span class="pulse"></span> VoicePrint — AI Text Humanization Pipeline</h1>
+  <div class="subtitle">Multi-stage processing flow · All stages run locally except Adversarial Paraphrasing</div>
+  <svg viewBox="0 0 1000 870" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+      </pattern>
+      <marker id="arrow-cyan" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 Z" fill="#22d3ee"/>
+      </marker>
+      <marker id="arrow-emerald" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 Z" fill="#34d399"/>
+      </marker>
+      <marker id="arrow-rose" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 Z" fill="#fb7185"/>
+      </marker>
+      <marker id="arrow-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 Z" fill="#fbbf24"/>
+      </marker>
+      <marker id="arrow-violet" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 Z" fill="#a78bfa"/>
+      </marker>
+      <filter id="glow">
+        <feGaussianBlur stdDeviation="2" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+
+    <!-- Background grid -->
+    <rect width="1000" height="870" fill="url(#grid)"/>
+
+    <!-- ===== BOUNDARY BOXES ===== -->
+    <rect x="90" y="85" width="300" height="580" rx="12" fill="rgba(8,51,68,0.04)" stroke="#22d3ee" stroke-width="1" stroke-dasharray="8,4" opacity="0.35"/>
+    <rect x="90" y="85" width="300" height="20" rx="10" fill="rgba(8,51,68,0.3)" stroke="none" opacity="0.5"/>
+    <text x="110" y="98" fill="#22d3ee" font-size="7" opacity="0.7">Free (local CPU) — Stages 1, 3, 4</text>
+
+    <rect x="420" y="170" width="250" height="110" rx="12" fill="rgba(6,78,59,0.04)" stroke="#34d399" stroke-width="1" stroke-dasharray="8,4" opacity="0.35"/>
+    <rect x="420" y="170" width="250" height="20" rx="10" fill="rgba(6,78,59,0.3)" stroke="none" opacity="0.5"/>
+    <text x="440" y="183" fill="#34d399" font-size="7" opacity="0.7">API call — Stage 2</text>
+
+    <rect x="550" y="400" width="250" height="90" rx="12" fill="rgba(76,29,149,0.04)" stroke="#a78bfa" stroke-width="1" stroke-dasharray="8,4" opacity="0.35"/>
+    <rect x="550" y="400" width="250" height="20" rx="10" fill="rgba(76,29,149,0.3)" stroke="none" opacity="0.5"/>
+    <text x="570" y="413" fill="#a78bfa" font-size="7" opacity="0.7">Heavy ML (lazy-loaded, first use only)</text>
+
+    <!-- ===== ARROWS (drawn first so they're behind boxes) ===== -->
+    <!-- Input → Stage 1 -->
+    <line x1="500" y1="50" x2="500" y2="85" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+
+    <!-- Stage 1 → Stage 2 -->
+    <path d="M 500 155 L 500 192" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrow-emerald)"/>
+
+    <!-- Stage 2 → Similarity Gate -->
+    <path d="M 500 305 L 500 345" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrow-amber)"/>
+
+    <!-- Similarity Gate → Best-of-N -->
+    <path d="M 500 392 L 500 425" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrow-cyan)"/>
+
+    <!-- Best-of-N → 3 detectors -->
+    <line x1="500" y1="465" x2="500" y2="495" stroke="#64748b" stroke-width="1.5"/>
+    <line x1="500" y1="495" x2="280" y2="495" stroke="#64748b" stroke-width="1"/>
+    <line x1="500" y1="495" x2="720" y2="495" stroke="#64748b" stroke-width="1"/>
+    <line x1="280" y1="495" x2="280" y2="520" stroke="#64748b" stroke-width="1" marker-end="url(#arrow-violet)"/>
+    <line x1="500" y1="495" x2="500" y2="520" stroke="#64748b" stroke-width="1" marker-end="url(#arrow-violet)"/>
+    <line x1="720" y1="495" x2="720" y2="520" stroke="#64748b" stroke-width="1" marker-end="url(#arrow-violet)"/>
+
+    <!-- 3 detectors → combine -->
+    <line x1="280" y1="562" x2="280" y2="590" stroke="#64748b" stroke-width="1"/>
+    <line x1="500" y1="562" x2="500" y2="590" stroke="#64748b" stroke-width="1"/>
+    <line x1="720" y1="562" x2="720" y2="590" stroke="#64748b" stroke-width="1"/>
+    <line x1="280" y1="590" x2="720" y2="590" stroke="#64748b" stroke-width="1"/>
+    <line x1="500" y1="590" x2="500" y2="610" stroke="#64748b" stroke-width="1" marker-end="url(#arrow-violet)"/>
+
+    <!-- Combine → Select lowest -->
+    <path d="M 500 642 L 500 665" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrow-violet)"/>
+
+    <!-- Select lowest → Stage 4 -->
+    <path d="M 500 697 L 500 735" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrow-cyan)"/>
+
+    <!-- Stage 4 → Output -->
+    <path d="M 500 780 L 500 810" stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#arrow-emerald)"/>
+
+    <!-- ===== RETRY LOOP ===== -->
+    <path d="M 680 680 Q 830 680 830 450 Q 830 260 660 260 L 540 260" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="5,3" fill="none" marker-end="url(#arrow-rose)"/>
+
+    <!-- ===== COMPONENTS ===== -->
+
+    <!-- Input pill -->
+    <rect x="440" y="20" width="120" height="36" rx="18" fill="#1e293b" stroke="#94a3b8" stroke-width="1.5"/>
+    <text x="500" y="43" text-anchor="middle" fill="#f1f5f9" font-size="11" font-weight="500">AI Text Input</text>
+
+    <!-- Stage 1 box -->
+    <rect x="425" y="100" width="150" height="55" rx="8" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+    <rect x="425" y="100" width="150" height="55" rx="8" fill="none" stroke="#22d3ee" stroke-width="1.5" opacity="0.3"/>
+    <text x="500" y="120" text-anchor="middle" fill="#22d3ee" font-size="9" font-weight="500">STAGE 1</text>
+    <text x="500" y="136" text-anchor="middle" fill="#f1f5f9" font-size="11" font-weight="600">Heuristic Scrub</text>
+    <text x="500" y="148" text-anchor="middle" fill="#64748b" font-size="7">50+ regex rules, free</text>
+
+    <!-- Stage 2 box -->
+    <rect x="420" y="210" width="160" height="95" rx="8" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
+    <text x="500" y="233" text-anchor="middle" fill="#34d399" font-size="9" font-weight="500">STAGE 2</text>
+    <text x="500" y="250" text-anchor="middle" fill="#f1f5f9" font-size="11" font-weight="600">Adversarial</text>
+    <text x="500" y="265" text-anchor="middle" fill="#f1f5f9" font-size="11" font-weight="600">Paraphrasing</text>
+    <text x="500" y="280" text-anchor="middle" fill="#fbbf24" font-size="7.5">N candidates · API call</text>
+    <text x="500" y="292" text-anchor="middle" fill="#64748b" font-size="7">3 escalation levels</text>
+
+    <!-- Similarity Gate -->
+    <rect x="445" y="363" width="110" height="30" rx="6" fill="rgba(120,53,15,0.25)" stroke="#fbbf24" stroke-width="1" stroke-dasharray="3,2"/>
+    <text x="500" y="382" text-anchor="middle" fill="#fbbf24" font-size="8">Similarity Gate ≥ 0.68</text>
+
+    <!-- Best-of-N -->
+    <rect x="455" y="440" width="90" height="26" rx="6" fill="rgba(30,41,59,0.5)" stroke="#64748b" stroke-width="1"/>
+    <text x="500" y="457" text-anchor="middle" fill="#94a3b8" font-size="7.5">Best-of-N</text>
+
+    <!-- 3 detector boxes -->
+    <rect x="220" y="535" width="120" height="28" rx="6" fill="rgba(30,41,59,0.5)" stroke="#64748b" stroke-width="1"/>
+    <text x="280" y="553" text-anchor="middle" fill="#94a3b8" font-size="7.5">Statistical Pre-filter</text>
+
+    <rect x="450" y="535" width="100" height="28" rx="6" fill="rgba(30,41,59,0.5)" stroke="#64748b" stroke-width="1"/>
+    <text x="500" y="553" text-anchor="middle" fill="#94a3b8" font-size="7.5">Perplexity</text>
+
+    <rect x="665" y="535" width="110" height="28" rx="6" fill="rgba(30,41,59,0.5)" stroke="#64748b" stroke-width="1"/>
+    <text x="720" y="553" text-anchor="middle" fill="#94a3b8" font-size="7.5">RoBERTa Ensemble</text>
+
+    <!-- Stage 3 label box -->
+    <rect x="415" y="600" width="170" height="42" rx="8" fill="rgba(76,29,149,0.35)" stroke="#a78bfa" stroke-width="1.5"/>
+    <text x="500" y="617" text-anchor="middle" fill="#a78bfa" font-size="9" font-weight="500">STAGE 3</text>
+    <text x="500" y="632" text-anchor="middle" fill="#f1f5f9" font-size="10" font-weight="600">Weighted Ensemble → p_AI</text>
+
+    <!-- Select lowest p_AI -->
+    <rect x="440" y="675" width="120" height="24" rx="6" fill="rgba(76,29,149,0.25)" stroke="#a78bfa" stroke-width="1"/>
+    <text x="500" y="692" text-anchor="middle" fill="#a78bfa" font-size="8">Select lowest p_AI</text>
+
+    <!-- Stage 4 box -->
+    <rect x="425" y="745" width="150" height="40" rx="8" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1.5"/>
+    <text x="500" y="761" text-anchor="middle" fill="#22d3ee" font-size="9" font-weight="500">STAGE 4</text>
+    <text x="500" y="775" text-anchor="middle" fill="#f1f5f9" font-size="11" font-weight="600">Style Polish</text>
+
+    <!-- Output pill -->
+    <rect x="440" y="820" width="120" height="36" rx="18" fill="#0f766e" stroke="#34d399" stroke-width="1.5"/>
+    <text x="500" y="843" text-anchor="middle" fill="#f1f5f9" font-size="11" font-weight="500">Humanized Text</text>
+
+    <!-- PromptMemory side node -->
+    <rect x="825" y="225" width="110" height="30" rx="6" fill="rgba(136,19,55,0.25)" stroke="#fb7185" stroke-width="1" stroke-dasharray="3,2"/>
+    <text x="880" y="240" text-anchor="middle" fill="#fb7185" font-size="7.5">PromptMemory</text>
+    <text x="880" y="250" text-anchor="middle" fill="#fb7185" font-size="6.5">adaptive feedback</text>
+
+    <!-- PromptMemory → Stage 2 dashed arrow -->
+    <path d="M 825 240 L 580 240" stroke="#fb7185" stroke-width="1" stroke-dasharray="3,3" fill="none" marker-end="url(#arrow-rose)"/>
+
+    <!-- ===== ANNOTATIONS ===== -->
+
+    <text x="135" y="118" fill="#64748b" font-size="7">&bull; AI-phrase replacement</text>
+    <text x="135" y="130" fill="#64748b" font-size="7">&bull; Burstiness injection</text>
+    <text x="135" y="142" fill="#64748b" font-size="7">&bull; Contractions + tricolon break</text>
+    <text x="135" y="154" fill="#64748b" font-size="7">&bull; Hedging removal</text>
+
+    <text x="135" y="230" fill="#64748b" font-size="7">&bull; 3 persona-escalation levels</text>
+    <text x="135" y="242" fill="#64748b" font-size="7">&bull; Detection-guided prompt</text>
+    <text x="135" y="254" fill="#64748b" font-size="7">&bull; Lite LLM: explain-to-friend</text>
+    <text x="135" y="266" fill="#64748b" font-size="7">&bull; Full LLM: rewrite from scratch</text>
+
+    <text x="135" y="490" fill="#64748b" font-size="7">&bull; Burstiness + pattern signals</text>
+    <text x="135" y="502" fill="#64748b" font-size="7">&bull; GPT-2 perplexity (~525MB)</text>
+    <text x="135" y="514" fill="#64748b" font-size="7">&bull; 2x RoBERTa classifiers (~1.9GB)</text>
+
+    <text x="135" y="760" fill="#64748b" font-size="7">&bull; Dysfluency injection</text>
+    <text x="135" y="772" fill="#64748b" font-size="7">&bull; Personal narrative hooks</text>
+    <text x="135" y="784" fill="#64748b" font-size="7">&bull; Formal → casual conversion</text>
+    <text x="135" y="796" fill="#64748b" font-size="7">&bull; Passive → active voice</text>
+    <text x="135" y="808" fill="#64748b" font-size="7">&bull; Vocabulary variety</text>
+
+    <!-- Retry label -->
+    <text x="770" y="520" fill="#fb7185" font-size="7" transform="rotate(-28, 770, 520)">Retry loop (p_AI ≥ 0.5 → re-paraphrase)</text>
+
+    <!-- Similarity gate annotation -->
+    <text x="340" y="377" fill="#64748b" font-size="6.5">Jaccard / MiniLM</text>
+
+    <!-- Lazy-load marker -->
+    <text x="625" y="505" fill="#64748b" font-size="6.5">lazy-loaded</text>
+    <text x="625" y="515" fill="#64748b" font-size="6.5">on first use</text>
+
+    <!-- ===== LEGEND ===== -->
+    <rect x="30" y="40" width="940" height="48" rx="8" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+    <text x="45" y="56" fill="#94a3b8" font-size="7" font-weight="500">LEGEND</text>
+
+    <rect x="45" y="63" width="10" height="10" rx="3" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1"/>
+    <text x="60" y="72" fill="#94a3b8" font-size="7">Free / local</text>
+
+    <rect x="145" y="63" width="10" height="10" rx="3" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1"/>
+    <text x="160" y="72" fill="#94a3b8" font-size="7">API call</text>
+
+    <rect x="240" y="63" width="10" height="10" rx="3" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1"/>
+    <text x="255" y="72" fill="#94a3b8" font-size="7">Heavy ML (lazy-load)</text>
+
+    <line x1="380" y1="68" x2="405" y2="68" stroke="#fb7185" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <text x="410" y="72" fill="#94a3b8" font-size="7">Retry / feedback</text>
+
+    <line x1="525" y1="68" x2="550" y2="68" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="3,2"/>
+    <text x="555" y="72" fill="#94a3b8" font-size="7">Similarity gate</text>
+  </svg>
+</div>
+
+<div class="cards">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-dot cyan"></div>
+      <h3>Stages 1 &amp; 4 — Free (Local)</h3>
+    </div>
+    <ul>
+      <li><span class="label">Heuristic Scrub (Stage 1):</span> 50+ regex rules that replace AI tells, force burstiness, break tricolon patterns, remove hedging — all pure Python</li>
+      <li><span class="label">Style Polish (Stage 4):</span> Dysfluency injection, passive→active voice, vocabulary variety, personal narrative hooks — zero dependencies beyond core</li>
+    </ul>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-dot emerald"></div>
+      <h3>Stage 2 — API (One Provider)</h3>
+    </div>
+    <ul>
+      <li><span class="label">Adversarial Paraphrasing:</span> LLM generates N candidates via 3-level persona escalation (explain-to-friend, blog-style, rewrite from scratch)</li>
+      <li><span class="label">PromptMemory:</span> Tracks which escalation level produced lowest p_AI per session and biases future selections</li>
+    </ul>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <div class="card-dot violet"></div>
+      <h3>Stage 3 — Detection &amp; Selection</h3>
+    </div>
+    <ul>
+      <li><span class="label">3-tier ensemble:</span> Statistical pre-filter (burstiness+patterns) → Perplexity (GPT-2) → RoBERTa (2 classifiers)</li>
+      <li><span class="label">Best-of-N:</span> Picks candidate with lowest p_AI score above similarity gate (≥0.68 to preserve meaning)</li>
+      <li><span class="label">Retry Loop:</span> If no candidate passes (p_AI ≥ 0.5), escalates prompt level and retries up to N times</li>
+    </ul>
+  </div>
+</div>
+
+<div class="footer">
+  VoicePrint · 345 tests · MIT License · pipeline-flow.html (open in browser)
+</div>
+</body>
+</html>

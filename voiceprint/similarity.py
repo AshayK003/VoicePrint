@@ -64,15 +64,20 @@ def compute_similarity(
 
     try:
         from sklearn.metrics.pairwise import cosine_similarity
-    except ImportError:
-        # sklearn not installed — fall back to Jaccard
+    except Exception:
+        # sklearn missing OR binary-incompatible (numpy ABI drift raises
+        # ValueError, not ImportError) — fall back to Jaccard
         return _jaccard_similarity(text_a, text_b)
     model = _get_model()
     if model is None:
         # Model failed to load, fallback to Jaccard
         return _jaccard_similarity(text_a, text_b)
-    embeddings = model.encode([text_a, text_b], show_progress_bar=False)
-    return float(cosine_similarity([embeddings[0]], [embeddings[1]])[0][0])
+    try:
+        embeddings = model.encode([text_a, text_b], show_progress_bar=False)
+        return float(cosine_similarity([embeddings[0]], [embeddings[1]])[0][0])
+    except Exception as e:
+        logging.debug(f"Embedding similarity failed ({e}); Jaccard fallback")
+        return _jaccard_similarity(text_a, text_b)
 
 
 def check_similarity(

@@ -64,6 +64,11 @@ class TestCopyButtonHtml:
         js = _copy_button_html("Line1\nLine2")
         assert "data-text=" in js
         assert "navigator.clipboard" in js
+        # Raw \n in an attribute is normalized to a space by the browser —
+        # must be encoded so multi-paragraph paste keeps line breaks.
+        attr = js.split('data-text="', 1)[1].split('"', 1)[0]
+        assert "&#10;" in attr
+        assert "\n" not in attr
 
     def test_empty_text(self):
         js = _copy_button_html("")

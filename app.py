@@ -331,6 +331,9 @@ def _copy_button_html(text: str, button_id: str = "copy-btn") -> str:
     safe = safe.replace('"', "&quot;")
     safe = safe.replace("<", "&lt;")
     safe = safe.replace(">", "&gt;")
+    # Newlines must be entities: raw \n in an attribute is normalized to a
+    # space by the browser, silently joining paragraphs on paste.
+    safe = safe.replace("\r", "").replace("\n", "&#10;")
     return (
         f'<button id="{button_id}" class="vp-copy-btn" '
         f'data-text="{safe}" '
@@ -580,6 +583,8 @@ cached_input = st.session_state.get("last_input", "")
 # ---------------------------------------------------------------------------
 
 if result:
+    if cached_input != input_text:
+        st.warning("Input changed since this result — click Humanize to refresh.", icon="⚠️")
     with col_output:
         st.markdown("**Output**")
 
@@ -618,8 +623,7 @@ if result:
     st.markdown('<div class="vp-spacer"></div>', unsafe_allow_html=True)
 
     method_tag = (
-        "Statistical" if "statistical" in result.detection_summary
-        else "Model"
+        "Statistical" if result.detection_summary.startswith("[STATISTICAL]") else "Model"
     )
     st.markdown(
         f'<div class="vp-section-header">'
@@ -711,6 +715,9 @@ if result:
                         st.markdown(f"- **{label}:** {v:.2f}")
                     else:
                         st.markdown(f"- **{label}:** {v}")
+        else:
+            with cols[0]:
+                st.caption("No readability data.")
         if bd:
             with cols[1]:
                 st.markdown("**Burstiness Detail**")
@@ -720,6 +727,9 @@ if result:
                         st.markdown(f"- **{label}:** {v:.4f}")
                     else:
                         st.markdown(f"- **{label}:** {v}")
+        else:
+            with cols[1]:
+                st.caption("No burstiness data.")
     with tab3:
         sig = result.signals
         if sig:
@@ -729,9 +739,14 @@ if result:
                     st.markdown(f"- **{label}:** {v:.4f}")
                 else:
                     st.markdown(f"- **{label}:** {v}")
+        else:
+            st.caption("No signals computed.")
     with tab4:
-        for s in result.stages:
-            st.markdown(f"- {s}")
+        if result.stages:
+            for s in result.stages:
+                st.markdown(f"- {s}")
+        else:
+            st.caption("No stages recorded.")
 
     # --- Download row ---
     dl1, dl2 = st.columns(2)

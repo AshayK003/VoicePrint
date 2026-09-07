@@ -7,6 +7,11 @@ All notable changes to VoicePrint are documented here. Format follows Keep a Cha
 ### Added
 - `fix_slop_tells` scrub rule: `SLOP_OPENERS` (18 clichéd sentence openers stripped with re-capitalization) and `SLOP_PHRASES` (30 slop-to-plain swaps like "testament to" → "proof of", "low-hanging fruit" → "easy wins"), pinned by 10 tests.
 
+### Fixed
+- Similarity no longer reports silent 0.0 when sklearn is binary-incompatible: any model-path failure falls back to Jaccard (2 regression tests).
+- Detection method badge now matches the ensemble header (was "Statistical" under a "[MODEL]" header).
+- Stale-result warning when input is edited after a run; copy button preserves line breaks; empty tabs show fallback captions instead of blank space.
+
 ## [0.2.0] — 2026-09-07
 
 ### Security

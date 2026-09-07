@@ -1,6 +1,6 @@
 # VoicePrint — AI Text Humanizer
 
-![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue) ![tests 346 passed, 12 skipped](https://img.shields.io/badge/tests-346_passed,_12_skipped-green) ![license MIT](https://img.shields.io/badge/license-MIT-green)
+![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue) ![tests 348 passed, 12 skipped](https://img.shields.io/badge/tests-348_passed,_12_skipped-green) ![license MIT](https://img.shields.io/badge/license-MIT-green)
 
 Multi-stage pipeline that rewrites AI-generated text to bypass GPTZero, Turnitin, Originality.ai, and ZeroGPT. Combines heuristic rules, LLM paraphrasing, detection-feedback selection, and style polish in a single pass.
 
@@ -157,7 +157,7 @@ VoicePrint/
 │   ├── _text.py                  # Shared sentence splitter (pysbd)
 │   └── static/
 │       └── style.css
-├── tests/                        # 358 tests, all mocked, no network
+├── tests/                        # 360 tests, all mocked, no network
 ├── tools/
 │   └── analyze_banned_words.py
 ├── .streamlit/config.toml
@@ -215,7 +215,7 @@ The `@rule` decorator auto-registers it. No other wiring needed. Same pattern fo
 ## Testing
 
 ```bash
-# Full suite (346 pass, 12 skipped without spaCy en_core_web_sm, ~25s)
+# Full suite (348 pass, 12 skipped without spaCy en_core_web_sm, ~25s)
 pytest tests/ -v
 
 # Single module

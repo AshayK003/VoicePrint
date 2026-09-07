@@ -2,9 +2,12 @@
 
 from voiceprint.scrub import (
     CONTRACTIONS,
+    SLOP_OPENERS,
+    SLOP_PHRASES,
     TRANSITION_MAP,
     break_tricolons,
     cleanup_numbered_lists,
+    fix_slop_tells,
     inject_contractions,
     reduce_em_dashes,
     remove_hedges,
@@ -21,6 +24,50 @@ class TestRuleRegistry:
     def test_all_rules_registered(self):
         from voiceprint.scrub import _rules
         assert len(_rules) >= 6
+
+    def test_slop_rule_registered(self):
+        from voiceprint.scrub import _rules, fix_slop_tells
+        assert fix_slop_tells in _rules
+
+
+# ---------------------------------------------------------------------------
+# fix_slop_tells
+# ---------------------------------------------------------------------------
+
+class TestSlopTells:
+    def test_opener_stripped_with_comma(self):
+        text = "In today's fast-paced world, AI writes everything."
+        assert fix_slop_tells(text) == "AI writes everything."
+
+    def test_opener_stripped_with_colon(self):
+        assert fix_slop_tells("Picture this: a better workflow.") == "A better workflow."
+
+    def test_opener_case_insensitive(self):
+        assert fix_slop_tells("LET'S DIVE IN, we start now.") == "We start now."
+
+    def test_recapitalization_after_strip(self):
+        assert fix_slop_tells("When it comes to pricing, we keep it simple.") == "Pricing, we keep it simple."
+
+    def test_phrase_swaps(self):
+        out = fix_slop_tells("A testament to design, it boasts speed in order to win.")
+        assert out == "A proof of design, it has speed to win."
+
+    def test_corporate_jargon_swaps(self):
+        out = fix_slop_tells("Let's touch base and circle back on the low-hanging fruit.")
+        assert out == "Let's talk and follow up on the easy wins."
+
+    def test_empty_fix_collapses_spaces(self):
+        out = fix_slop_tells("Needless to say, the end result matters.")
+        assert "  " not in out
+        assert out == "The result matters."
+
+    def test_clean_text_untouched(self):
+        text = "The server handles requests quickly and reliably."
+        assert fix_slop_tells(text) == text
+
+    def test_dictionaries_nonempty(self):
+        assert len(SLOP_OPENERS) >= 10
+        assert len(SLOP_PHRASES) >= 20
 
 
 # ---------------------------------------------------------------------------

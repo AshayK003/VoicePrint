@@ -2,6 +2,11 @@
 
 All notable changes to VoicePrint are documented here. Format follows Keep a Changelog.
 
+## [Unreleased]
+
+### Added
+- `fix_slop_tells` scrub rule: `SLOP_OPENERS` (18 clichéd sentence openers stripped with re-capitalization) and `SLOP_PHRASES` (30 slop-to-plain swaps like "testament to" → "proof of", "low-hanging fruit" → "easy wins"), pinned by 10 tests.
+
 ## [0.2.0] — 2026-09-07
 
 ### Security

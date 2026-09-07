@@ -149,6 +149,91 @@ def replace_transitions(text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# AI slop tells — clichéd openers detectors flag first, plus the phrase
+# swaps too specific to live in TRANSITION_MAP
+# ---------------------------------------------------------------------------
+
+SLOP_OPENERS: tuple[str, ...] = (
+    "In today's fast-paced world",
+    "In today's digital age",
+    "In the ever-evolving world of",
+    "In the ever-evolving landscape of",
+    "I hope this message finds you well",
+    "Let's dive in",
+    "Let's explore",
+    "Buckle up",
+    "Imagine a world where",
+    "Picture this",
+    "Gone are the days when",
+    "Look no further",
+    "Needless to say",
+    "When it comes to",
+    "It's no secret that",
+    "There is no denying that",
+    "There's no denying that",
+    "In this article, we will",
+    "In this post, we will",
+)
+
+SLOP_PHRASES: dict[str, str] = {
+    "testament to": "proof of",
+    "boasts": "has",
+    "nestled in": "located in",
+    "bustling": "busy",
+    "more than just": "more than",
+    "a wide range of": "many",
+    "a large number of": "many",
+    "in order to": "to",
+    "due to the fact that": "because",
+    "ever-evolving": "changing",
+    "fast-paced": "fast",
+    "cutting edge": "newest",
+    "game changer": "breakthrough",
+    "deep dive": "close look",
+    "dive into": "look at",
+    "unlock the power of": "use",
+    "harness": "use",
+    "elevate": "improve",
+    "supercharge": "boost",
+    "touch base": "talk",
+    "move the needle": "matter",
+    "low-hanging fruit": "easy wins",
+    "think outside the box": "be creative",
+    "circle back": "follow up",
+    "first and foremost": "first",
+    "each and every": "every",
+    "end result": "result",
+    "past history": "history",
+    "free gift": "gift",
+    "needless to say": "",
+}
+
+
+@rule
+def fix_slop_tells(text: str) -> str:
+    """Strip clichéd sentence openers, swap slop phrases for plain words."""
+    out = []
+    for sent in re.split(r"(?<=[.!?])\s+", text):
+        stripped = sent
+        for opener in SLOP_OPENERS:
+            m = re.match(
+                r"\s*" + re.escape(opener) + r"\s*,?\s*:?\s*",
+                stripped,
+                re.IGNORECASE,
+            )
+            if m:
+                stripped = stripped[m.end():]
+                break
+        if stripped != sent and stripped[:1].islower():
+            stripped = stripped[:1].upper() + stripped[1:]
+        out.append(stripped)
+    text = " ".join(s for s in out if s).strip()
+    for slop, fix in SLOP_PHRASES.items():
+        text = re.compile(re.escape(slop), re.IGNORECASE).sub(fix, text)
+    return re.sub(r"[ \t]{2,}", " ", text).strip()
+
+
+# ---------------------------------------------------------------------------
 # Tricolon breaking (X, Y, and Z → X and Y)
 # ---------------------------------------------------------------------------
 

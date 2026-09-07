@@ -1,6 +1,6 @@
 # VoicePrint — AI Text Humanizer
 
-![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue) ![tests 336 passed, 12 skipped](https://img.shields.io/badge/tests-336_passed,_12_skipped-green) ![license MIT](https://img.shields.io/badge/license-MIT-green)
+![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue) ![tests 346 passed, 12 skipped](https://img.shields.io/badge/tests-346_passed,_12_skipped-green) ![license MIT](https://img.shields.io/badge/license-MIT-green)
 
 Multi-stage pipeline that rewrites AI-generated text to bypass GPTZero, Turnitin, Originality.ai, and ZeroGPT. Combines heuristic rules, LLM paraphrasing, detection-feedback selection, and style polish in a single pass.
 
@@ -18,7 +18,7 @@ Input (AI text) → Scrub → Paraphrase (LLM) → Restructure → Polish → De
 
 | Stage | File | What it does | Cost |
 |-------|------|-------------|------|
-| 1. Scrub | `scrub.py` | Replaces 130+ AI-favorite phrases, forces burstiness, injects contractions, breaks tricolons, removes hedging | Pure Python, free |
+| 1. Scrub | `scrub.py` | Replaces 150+ AI-favorite phrases, strips clichéd openers, forces burstiness, injects contractions, breaks tricolons, removes hedging | Pure Python, free |
 | 2. Paraphrase | `paraphrase.py` | LLM generates N candidates using escalation prompts. Detection-guided feedback adapts tone per retry. Selects lowest-AI candidate via detection ensemble | API call |
 | 2b. Restructure | `restructure.py` | Syntactic clause transformations via spaCy — front/back subclause swaps, appositive extraction, compound splits | spaCy (local) |
 | 3. Detect | `detect.py` | 3-tier ensemble: statistical pre-filter (instant) → perplexity (GPT-2) → RoBERTa classifiers. Skips model loading for clear human/AI text | Local ML (~4GB) |
@@ -157,7 +157,7 @@ VoicePrint/
 │   ├── _text.py                  # Shared sentence splitter (pysbd)
 │   └── static/
 │       └── style.css
-├── tests/                        # 348 tests, all mocked, no network
+├── tests/                        # 358 tests, all mocked, no network
 ├── tools/
 │   └── analyze_banned_words.py
 ├── .streamlit/config.toml
@@ -215,7 +215,7 @@ The `@rule` decorator auto-registers it. No other wiring needed. Same pattern fo
 ## Testing
 
 ```bash
-# Full suite (336 pass, 12 skipped without spaCy en_core_web_sm, ~25s)
+# Full suite (346 pass, 12 skipped without spaCy en_core_web_sm, ~25s)
 pytest tests/ -v
 
 # Single module
